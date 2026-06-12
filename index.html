@@ -108,13 +108,13 @@
     -webkit-background-clip:text; background-clip:text; color:transparent;
     font-size:20px; font-weight:800;
   }
-  .header-actions { display:flex; gap:8px; }
+  .header-actions { display:flex; gap:8px; align-items:center; }
   .logout-btn {
     background:#fff; color:#e25b5b; border:1px solid #f3d4d4; padding:8px 16px;
     border-radius:8px; cursor:pointer; font-size:13px; font-weight:600;
   }
-  .reset-btn {
-    background:#fff; color:#8b6df8; border:1px solid #ddd6fe; padding:8px 16px;
+  .add-category-btn {
+    background:linear-gradient(135deg,#34c98f,#27ae60); color:#fff; border:none; padding:8px 16px;
     border-radius:8px; cursor:pointer; font-size:13px; font-weight:600;
   }
   .category-section {
@@ -123,10 +123,22 @@
     border-radius:16px; padding:20px; margin-bottom:20px;
     box-shadow:0 10px 30px rgba(109,131,255,0.08);
   }
-  .category-section h3 {
-    color:#6d83ff; margin-bottom:14px; font-size:17px; font-weight:700;
-    border-bottom:2px solid #eef1ff; padding-bottom:10px;
+  .category-title-wrap {
+    display:flex; justify-content:space-between; align-items:center;
+    border-bottom:2px solid #eef1ff; padding-bottom:10px; margin-bottom:14px;
   }
+  .category-section h3 {
+    color:#6d83ff; font-size:17px; font-weight:700; display:flex; align-items:center; gap:6px;
+  }
+  .edit-title-icon {
+    cursor:pointer; font-size:14px; opacity:0.6; transition:0.2s; display:inline-block;
+  }
+  .edit-title-icon:hover { opacity:1; transform:scale(1.15); }
+  .delete-category-btn {
+    background:none; border:none; color:#bbb; cursor:pointer; font-size:12px; font-weight:500; transition:0.2s;
+  }
+  .delete-category-btn:hover { color:#e74c3c; }
+  
   .upload-row { display:flex; gap:10px; align-items:center; margin-bottom:16px; flex-wrap:wrap;}
   .upload-btn {
     background:linear-gradient(135deg,#6d83ff,#8b6df8); color:#fff; border:none; padding:10px 18px;
@@ -176,7 +188,7 @@
     font-size:11px; font-weight:800; border-radius:10px; padding:2px 7px;
     min-width:18px; display:inline-block; text-align:center; line-height:1.4;
     box-shadow:0 4px 10px rgba(255,91,91,0.35);
-    -webkit-text-fill-color:#fff; /* override gradient text clip from parent */
+    -webkit-text-fill-color:#fff;
   }
   .user-header button {
     background:#fff; color:#e25b5b; border:1px solid #f3d4d4; padding:7px 14px;
@@ -256,7 +268,7 @@
     width:100%; height:100%; border:none; background:#fff;
   }
 
-  /* ===== RESET MODAL ===== */
+  /* ===== MODAL GENERAL STYLE ===== */
   .modal-overlay {
     position:fixed; top:0; left:0; width:100%; height:100%;
     background:rgba(0,0,0,0.5); z-index:1000; display:flex;
@@ -268,7 +280,7 @@
   }
   .modal-box h3 { color:#333; margin-bottom:16px; font-size:17px; }
   .modal-box label { font-size:13px; color:#666; display:block; margin-bottom:6px; }
-  .modal-box input {
+  .modal-box input, .modal-box select {
     width:100%; padding:10px; margin-bottom:14px; border:1px solid #ddd;
     border-radius:8px; font-size:14px;
   }
@@ -281,6 +293,10 @@
   .modal-msg { font-size:12px; margin-top:8px; min-height:16px; }
   .modal-msg.error { color:#e74c3c; }
   .modal-msg.success { color:#2ecc71; }
+  
+  .attached-img-preview {
+    max-width:100%; max-height:200px; margin-top:10px; border-radius:6px; display:block;
+  }
 </style>
 </head>
 <body>
@@ -301,36 +317,12 @@
   <div class="admin-header">
     <h2>🛠 관리자 모드</h2>
     <div class="header-actions">
-      <button class="reset-btn" onclick="openResetModal()">일반계정 비밀번호 초기화</button>
+      <button class="add-category-btn" onclick="openAddCategoryModal()">➕ 새 항목 추가</button>
       <button class="logout-btn" onclick="logout()">로그아웃</button>
     </div>
   </div>
 
-  <div class="category-section">
-    <h3>📢 공지사항</h3>
-    <div class="upload-row">
-      <button class="upload-btn" onclick="openBoardEditor('notice')">새 공지 작성</button>
-    </div>
-    <ul class="file-list" id="listNotice"></ul>
-  </div>
-
-  <div class="category-section">
-    <h3>📗 업무 표준화</h3>
-    <div class="upload-row">
-      <button class="upload-btn" onclick="openBoardEditor('standard')">새 글 작성</button>
-    </div>
-    <ul class="file-list" id="listStandard"></ul>
-  </div>
-
-  <div class="category-section">
-    <h3>📘 교육자료</h3>
-    <div class="upload-row">
-      <button class="upload-btn" id="btnEdu" onclick="document.getElementById('fileEdu').click()">PDF 업로드</button>
-      <input type="file" id="fileEdu" accept="application/pdf" onchange="handleUpload(event,'edu')">
-      <span class="upload-status" id="statusEdu"></span>
-    </div>
-    <ul class="file-list" id="listEdu"></ul>
-  </div>
+  <div id="adminSectionsContainer"></div>
 </div>
 
 <div id="userScreen" class="hidden">
@@ -340,27 +332,7 @@
   </div>
 
   <div class="menu-wrap" id="menuView">
-    <div class="menu-card" onclick="openCategory('notice')">
-      <div class="icon">📢<span class="notice-badge hidden" id="noticeBadgeMenu">0</span></div>
-      <div class="text">
-        <h4>공지사항</h4>
-        <p>공지 및 안내사항 확인</p>
-      </div>
-    </div>
-    <div class="menu-card" onclick="openCategory('standard')">
-      <div class="icon" style="background:linear-gradient(135deg,#34c98f,#6de0b8);">📗</div>
-      <div class="text">
-        <h4>업무 표준화</h4>
-        <p>업무 표준화 관련 안내글</p>
-      </div>
-    </div>
-    <div class="menu-card" onclick="openCategory('edu')">
-      <div class="icon">📘</div>
-      <div class="text">
-        <h4>교육자료</h4>
-        <p>교육용 PDF 자료 모음</p>
-      </div>
-    </div>
+    <div id="userMenuCardContainer"></div>
   </div>
 
   <div class="browse-wrap hidden" id="browseView">
@@ -380,28 +352,40 @@
   </div>
 </div>
 
-<div id="resetModal" class="modal-overlay hidden">
+<div id="categoryModal" class="modal-overlay hidden">
   <div class="modal-box">
-    <h3>🔑 일반계정 비밀번호 초기화</h3>
-    <label>현재 일반계정 ID: <b id="currentUserId">PUSDOC</b></label>
-    <label for="newUserPw">새 비밀번호</label>
-    <input type="text" id="newUserPw" placeholder="새 비밀번호 입력">
+    <h3 id="categoryModalTitle">새 항목 추가</h3>
+    <label for="categoryNameInput">항목 이름</label>
+    <input type="text" id="categoryNameInput" placeholder="예: 공지사항, 교육자료">
+    <label for="categoryTypeSelect">항목 종류</label>
+    <select id="categoryTypeSelect">
+      <option value="board">📝 글 작성 게시판 형태 (공지사항 등)</option>
+      <option value="file">📁 PDF 파일 업로드 형태 (교육자료 등)</option>
+    </select>
     <div class="modal-actions">
-      <button class="modal-cancel" onclick="closeResetModal()">취소</button>
-      <button class="modal-confirm" onclick="resetUserPassword()">초기화</button>
+      <button class="modal-cancel" onclick="closeCategoryModal()">취소</button>
+      <button class="modal-confirm" onclick="saveCategory()">저장</button>
     </div>
-    <div class="modal-msg" id="resetMsg"></div>
   </div>
 </div>
 
 <div id="noticeEditorModal" class="modal-overlay hidden">
   <div class="modal-box" style="width:480px; max-width:90vw;">
-    <h3 id="noticeEditorTitle">📢 새 글 작성</h3>
+    <h3 id="noticeEditorTitle">📝 새 글 작성</h3>
     <label for="noticeTitleInput">제목</label>
     <input type="text" id="noticeTitleInput" placeholder="제목을 입력하세요">
     <label for="noticeContentInput">내용</label>
     <textarea id="noticeContentInput" placeholder="내용을 입력하세요"
       style="width:100%; min-height:160px; padding:10px; border:1px solid #ddd; border-radius:8px; font-size:14px; margin-bottom:14px; resize:vertical; font-family:inherit;"></textarea>
+    
+    <label>📸 이미지 첨부 (선택)</label>
+    <div style="margin-bottom: 14px;">
+      <button type="button" class="upload-btn" style="padding: 6px 12px; font-size: 12px;" onclick="document.getElementById('boardImgFile').click()">이미지 선택</button>
+      <input type="file" id="boardImgFile" accept="image/*" onchange="previewBoardImage(event)">
+      <span id="boardImgStatus" style="font-size:12px; color:#666; margin-left:8px;"></span>
+      <img id="boardImgPrev" class="attached-img-preview hidden">
+    </div>
+
     <div class="modal-actions">
       <button class="modal-cancel" onclick="closeNoticeEditor()">취소</button>
       <button class="modal-confirm" onclick="saveBoardItem()">저장</button>
@@ -414,7 +398,10 @@
   <div class="modal-box" style="width:480px; max-width:90vw; text-align:left;">
     <h3 id="noticeViewTitle" style="margin-bottom:6px;"></h3>
     <div id="noticeViewDate" style="font-size:11px; color:#aaa; margin-bottom:14px;"></div>
-    <div id="noticeViewContent" style="font-size:14px; color:#333; line-height:1.6; white-space:pre-wrap; max-height:300px; overflow-y:auto; margin-bottom:18px;"></div>
+    <div id="noticeViewContent" style="font-size:14px; color:#333; line-height:1.6; white-space:pre-wrap; max-height:250px; overflow-y:auto; margin-bottom:14px;"></div>
+    <div id="noticeViewImgWrap" style="text-align:center; margin-bottom:14px;" class="hidden">
+      <img id="noticeViewImg" style="max-width:100%; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1);">
+    </div>
     <div class="modal-actions">
       <button class="modal-cancel" onclick="closeNoticeView()" style="flex:1;">닫기</button>
     </div>
@@ -425,7 +412,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
 /* =========================================================
-   Firebase 초기화 (Realtime Database)
+   Firebase 초기화
 ========================================================= */
 const firebaseConfig = {
   apiKey: "AIzaSyCI63LAj72YVvDHJUE2cD3YQIZH7z1e_J4",
@@ -437,157 +424,135 @@ const firebaseConfig = {
   appId: "1:902413106606:web:aaab7c8652847763bf5c3f"
 };
 firebase.initializeApp(firebaseConfig);
-const noticesRef = firebase.database().ref('notices');
-const standardsRef = firebase.database().ref('standards');
 
-const boardRefs = { notice: noticesRef, standard: standardsRef };
+const categoriesRef = firebase.database().ref('categories');
+const dataRef = firebase.database().ref('dynamicData');
 
-/* 게시판 실시간 캐시 */
-let noticesCache = [];
-let standardsCache = [];
-const boardCaches = { notice: () => noticesCache, standard: () => standardsCache };
-
-// [진짜 버그 해결] 앱이 최초 로딩될 때 서버 데이터 수신 완료 여부를 체크하는 스위치
-let isNoticeLoaded = false;
-let isStandardLoaded = false;
-
-function checkInitialSessionRestore() {
-  // 공지사항과 업무표준화 데이터를 서버에서 완벽히 수신했다면 그제서야 자동 세션 복구 실행
-  if (isNoticeLoaded && isStandardLoaded) {
-    const session = localStorage.getItem(SESSION_KEY);
-    if (session === 'admin') {
-      enterAdmin();
-    } else if (session === 'user') {
-      enterUser();
-    }
-  }
-}
-
-function makeBoardListener(ref, setCache, markLoaded, onUpdate) {
-  ref.on('value', (snapshot) => {
-    const data = snapshot.val() || {};
-    const list = Object.keys(data).map(id => ({
-      id: id,
-      title: data[id].title,
-      content: data[id].content,
-      date: data[id].date,
-      timestamp: data[id].timestamp || 0
-    })).sort((a,b) => b.timestamp - a.timestamp);
-    setCache(list);
-    markLoaded(); // 데이터 로딩 완료 체크
-    onUpdate();
-    checkInitialSessionRestore(); // 최초 실행 타이밍 강제 조율
-  }, (err) => console.error('Firebase board listener error:', err));
-}
-
-makeBoardListener(noticesRef, (list) => { noticesCache = list; }, () => { isNoticeLoaded = true; }, () => {
-  if (!document.getElementById('adminScreen').classList.contains('hidden')) {
-    renderAdminBoard('notice');
-  }
-  if (!document.getElementById('userScreen').classList.contains('hidden')) {
-    if (currentCategory === 'notice') renderUserFiles();
-    updateNoticeBadge();
-  }
-});
-
-makeBoardListener(standardsRef, (list) => { standardsCache = list; }, () => { isStandardLoaded = true; }, () => {
-  if (!document.getElementById('adminScreen').classList.contains('hidden')) {
-    renderAdminBoard('standard');
-  }
-  if (!document.getElementById('userScreen').classList.contains('hidden')) {
-    if (currentCategory === 'standard') renderUserFiles();
-  }
-});
-</script>
-
-<script>
-/* =========================================================
-   설정 / 계정 정보
-========================================================= */
-const ADMIN_ID = 'PUSEDU';
-const ADMIN_PW = 'PUSEDU';
-const USER_ID  = 'PUSDOC';
-const USER_PW_KEY = 'eduSiteUserPw';
-const SESSION_KEY = 'eduSiteSession';
-
-function getUserPw() {
-  return localStorage.getItem(USER_PW_KEY) || 'PUSDOC';
-}
-function setUserPw(pw) {
-  localStorage.setItem(USER_PW_KEY, pw);
-}
-
-/* =========================================================
-   게시판 저장 (공지사항 / 업무 표준화) - Firebase Realtime Database
-========================================================= */
-function getBoardItems(board) {
-  return boardCaches[board]();
-}
-function addOrUpdateBoardItem(board, id, title, content) {
-  const ref = boardRefs[board];
-  const now = Date.now();
-  const dateStr = new Date(now).toLocaleString('ko-KR');
-  if (id) {
-    ref.child(id).update({ title, content, date: dateStr });
-  } else {
-    const newRef = ref.push();
-    newRef.set({ title, content, date: dateStr, timestamp: now });
-  }
-}
-function deleteBoardItem(board, id) {
-  boardRefs[board].child(id).remove();
-}
-
-function getNotices() { return getBoardItems('notice'); }
-
-/* =========================================================
-   파일 저장 (Cloudflare R2 + Firebase Realtime Database)
-========================================================= */
 const WORKER_URL = 'https://pusdoc.jeongkil0486.workers.dev'; 
 const UPLOAD_SECRET = 'PUSDOC';                                        
 const R2_PUBLIC_BASE = 'https://pub-0ac04327385c410ca267e994bea14de1.r2.dev'; 
 
-const filesRef = firebase.database().ref('files');
+const USER_PW_KEY = 'eduSiteUserPw';
+const SESSION_KEY = 'eduSiteSession';
+const ADMIN_ID = 'PUSEDU';
+const ADMIN_PW = 'PUSEDU';
+const USER_ID  = 'PUSDOC';
 
-let filesCache = { edu: [], std: [] };
+let categoriesCache = {};
+let dynamicDataCache = {};
+let currentCategory = null;
+let isCategoriesLoaded = false;
+let isDataLoaded = false;
 
-filesRef.on('value', (snapshot) => {
-  const data = snapshot.val() || {};
-  ['edu','std'].forEach(cat => {
-    const catData = data[cat] || {};
-    filesCache[cat] = Object.keys(catData).map(id => ({
-      id: id,
-      name: catData[id].name,
-      url: catData[id].url,
-      key: catData[id].key,
-      ts: catData[id].ts || 0
-    })).sort((a,b) => b.ts - a.ts);
+// 초기 카테고리가 데이터베이스에 없을 경우 자동 생성 세팅
+function initDefaultCategories() {
+  categoriesRef.once('value', snapshot => {
+    if(!snapshot.exists()) {
+      categoriesRef.set({
+        "notice": { name: "공지사항", type: "board", icon: "📢", order: 1 },
+        "standard": { name: "업무 표준화", type: "board", icon: "📗", order: 2 },
+        "edu": { name: "교육자료", type: "file", icon: "📘", order: 3 }
+      });
+    }
   });
+}
+initDefaultCategories();
 
-  if (!document.getElementById('adminScreen').classList.contains('hidden')) {
-    renderAdminFiles();
-  }
-  if (!document.getElementById('userScreen').classList.contains('hidden')) {
-    if (currentCategory === 'edu') renderUserFiles();
-  }
-}, (err) => {
-  console.error('Firebase files listener error:', err);
+// 카테고리 실시간 동기화 리스너
+categoriesRef.on('value', snapshot => {
+  categoriesCache = snapshot.val() || {};
+  isCategoriesLoaded = true;
+  renderAdminAll();
+  renderUserMenu();
+  checkInitialSessionRestore();
 });
 
-async function addFile(category, name, file, onProgress) {
-  const id = Date.now() + '_' + Math.random().toString(36).slice(2,8);
-  const key = category + '/' + id + '_' + encodeURIComponent(name);
+// 데이터 전체 실시간 동기화 리스너
+dataRef.on('value', snapshot => {
+  dynamicDataCache = snapshot.val() || {};
+  isDataLoaded = true;
+  renderAdminAll();
+  if (currentCategory) renderUserFiles();
+  updateNoticeBadge();
+  checkInitialSessionRestore();
+});
 
-  const MAX_SIZE = 50 * 1024 * 1024; 
-  if (file.size > MAX_SIZE) {
-    throw new Error('파일이 너무 큽니다. 50MB 이하의 PDF만 업로드할 수 있습니다.');
+function checkInitialSessionRestore() {
+  if (isCategoriesLoaded && isDataLoaded) {
+    const session = localStorage.getItem(SESSION_KEY);
+    if (session === 'admin') enterAdmin();
+    else if (session === 'user') enterUser();
   }
+}
+</script>
+
+<script>
+/* =========================================================
+   카테고리 생성 / 수정 / 삭제 로직 (실시간 일반모드 반영)
+========================================================= */
+let editingCategoryId = null;
+
+function openAddCategoryModal() {
+  editingCategoryId = null;
+  document.getElementById('categoryModalTitle').textContent = '➕ 새 항목 추가';
+  document.getElementById('categoryNameInput').value = '';
+  document.getElementById('categoryTypeSelect').disabled = false;
+  document.getElementById('categoryModal').classList.remove('hidden');
+}
+
+function openEditCategoryModal(id) {
+  editingCategoryId = id;
+  document.getElementById('categoryModalTitle').textContent = '✏️ 항목 이름 수정';
+  document.getElementById('categoryNameInput').value = categoriesCache[id].name;
+  document.getElementById('categoryTypeSelect').value = categoriesCache[id].type;
+  document.getElementById('categoryTypeSelect').disabled = true;
+  document.getElementById('categoryModal').classList.remove('hidden');
+}
+
+function closeCategoryModal() {
+  document.getElementById('categoryModal').classList.add('hidden');
+}
+
+function saveCategory() {
+  const name = document.getElementById('categoryNameInput').value.trim();
+  const type = document.getElementById('categoryTypeSelect').value;
+  if(!name) { alert('이름을 입력해주세요.'); return; }
+
+  if(editingCategoryId) {
+    // 수정
+    categoriesRef.child(editingCategoryId).update({ name: name });
+  } else {
+    // 생성
+    const newId = 'cat_' + Date.now();
+    const icon = type === 'board' ? '📝' : '📁';
+    const order = Object.keys(categoriesCache).length + 1;
+    categoriesRef.child(newId).set({ name, type, icon, order });
+  }
+  closeCategoryModal();
+}
+
+function deleteCategory(id) {
+  if(!confirm('이 항목을 삭제하시겠습니까? 내부 데이터와 파일정보도 전부 함께 삭제됩니다.')) return;
+  categoriesRef.child(id).remove();
+  dataRef.child(id).remove();
+  if(currentCategory === id) showMenu();
+}
+</script>
+
+<script>
+/* =========================================================
+   R2 스토리지 실제 파일 업로드 처리함수
+========================================================= */
+async function uploadToR2(file, folderPath, onProgress) {
+  const id = Date.now() + '_' + Math.random().toString(36).slice(2,8);
+  const extension = file.name.split('.').pop();
+  const key = folderPath + '/' + id + '.' + extension;
 
   await new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', WORKER_URL + '/' + key);
     xhr.setRequestHeader('x-api-key', UPLOAD_SECRET);
-    xhr.setRequestHeader('Content-Type', 'application/pdf');
+    xhr.setRequestHeader('Content-Type', file.type);
     xhr.upload.onprogress = (e) => {
       if (onProgress && e.lengthComputable) {
         onProgress(Math.round((e.loaded / e.total) * 100));
@@ -595,45 +560,282 @@ async function addFile(category, name, file, onProgress) {
     };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) resolve();
-      else reject(new Error('업로드 실패 (status ' + xhr.status + '): ' + xhr.responseText));
+      else reject(new Error('업로드 실패'));
     };
-    xhr.onerror = () => reject(new Error('네트워크 오류로 업로드에 실패했습니다.'));
+    xhr.onerror = () => reject(new Error('네트워크 오류'));
     xhr.send(file);
   });
 
-  const url = R2_PUBLIC_BASE + '/' + key;
-  await filesRef.child(category).child(id).set({
-    name: name,
-    url: url,
-    key: key,
-    ts: Date.now()
-  });
-  return { id, name, url, key };
+  return R2_PUBLIC_BASE + '/' + key;
 }
+</script>
 
-function getFilesByCategory(category) {
-  return filesCache[category] || [];
-}
-
-async function deleteFileById(category, id) {
-  const file = (filesCache[category] || []).find(f => f.id === id);
-  if (file && file.key) {
-    try {
-      await fetch(WORKER_URL + '/' + file.key, {
-        method: 'DELETE',
-        headers: { 'x-api-key': UPLOAD_SECRET }
-      });
-    } catch (e) {
-      console.warn('R2 delete failed:', e);
-    }
-  }
-  await filesRef.child(category).child(id).remove();
-}
-
+<script>
 /* =========================================================
-   로그인 / 로그아웃
+   글 작성용 이미지 첨부 미리보기 및 업로드 변수
 ========================================================= */
-let currentCategory = null;
+let attachedImageFile = null;
+
+function previewBoardImage(event) {
+  const file = event.target.files[0];
+  if(!file) return;
+  if(!file.type.startsWith('image/')) {
+    alert('이미지 파일만 선택할 수 있습니다.');
+    event.target.value = '';
+    return;
+  }
+  attachedImageFile = file;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = document.getElementById('boardImgPrev');
+    img.src = e.target.result;
+    img.classList.remove('hidden');
+  }
+  reader.readAsDataURL(file);
+}
+</script>
+
+<script>
+/* =========================================================
+   관리자 / 사용자 UI 렌더링 엔진 (실시간 구조)
+========================================================= */
+function renderAdminAll() {
+  const container = document.getElementById('adminSectionsContainer');
+  if(!container) return;
+  container.innerHTML = '';
+
+  const sortedKeys = Object.keys(categoriesCache).sort((a,b) => (categoriesCache[a].order || 0) - (categoriesCache[b].order || 0));
+
+  if(sortedKeys.length === 0) {
+    container.innerHTML = '<div class="empty-msg">항목이 없습니다. 우측 상단에서 새 항목을 추가해 주세요.</div>';
+    return;
+  }
+
+  sortedKeys.forEach(catId => {
+    const cat = categoriesCache[catId];
+    const section = document.createElement('div');
+    section.className = 'category-section';
+
+    // 헤더 구조 생성 (연필 아이콘 및 삭제버튼 배치)
+    section.innerHTML = `
+      <div class="category-title-wrap">
+        <h3>
+          ${cat.icon} <span>${escapeHtml(cat.name)}</span>
+          <span class="edit-title-icon" onclick="openEditCategoryModal('${catId}')">✏️</span>
+        </h3>
+        <button class="delete-category-btn" onclick="deleteCategory('${catId}')">❌ 항목 삭제</button>
+      </div>
+    `;
+
+    const row = document.createElement('div');
+    row.className = 'upload-row';
+
+    if(cat.type === 'board') {
+      row.innerHTML = `<button class="upload-btn" onclick="openBoardEditor('${catId}')">새 글 작성</button>`;
+    } else {
+      row.innerHTML = `
+        <button class="upload-btn" id="btn_${catId}" onclick="document.getElementById('file_${catId}').click()">PDF 업로드</button>
+        <input type="file" id="file_${catId}" accept="application/pdf" onchange="handleFileUpload(event,'${catId}')">
+        <span class="upload-status" id="status_${catId}"></span>
+      `;
+    }
+    section.appendChild(row);
+
+    // 목록 바인딩
+    const ul = document.createElement('ul');
+    ul.className = 'file-list';
+    const itemsData = dynamicDataCache[catId] || {};
+    const items = Object.keys(itemsData).map(k => ({id: k, ...itemsData[k]})).sort((a,b) => b.timestamp - a.timestamp);
+
+    if(items.length === 0) {
+      ul.innerHTML = '<li class="empty-msg">등록된 내용이 없습니다.</li>';
+     section.appendChild(ul);
+     container.appendChild(section);
+     return;
+    }
+
+    items.forEach(item => {
+      const li = document.createElement('li');
+      li.className = 'file-item';
+      if(cat.type === 'board') {
+        li.innerHTML = `
+          <div class="fname" style="cursor:pointer;" onclick="viewBoardItem('${catId}','${item.id}')">
+            📝 <span class="label">${escapeHtml(item.title)}</span>
+            <span style="color:#aaa; font-size:11px; margin-left:8px;">${item.date}</span>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button class="del-btn" style="background:#6d83ff;" onclick="openBoardEditor('${catId}','${item.id}')">수정</button>
+            <button class="del-btn" onclick="deleteDataItem('${catId}','${item.id}')">삭제</button>
+          </div>
+        `;
+      } else {
+        li.innerHTML = `
+          <div class="fname">📄 <span class="label">${escapeHtml(item.name)}</span></div>
+          <button class="del-btn" onclick="deleteDataItem('${catId}','${item.id}')">삭제</button>
+        `;
+      }
+      ul.appendChild(li);
+    });
+
+    section.appendChild(ul);
+    container.appendChild(section);
+  });
+}
+
+function renderUserMenu() {
+  const container = document.getElementById('userMenuCardContainer');
+  if(!container) return;
+  container.innerHTML = '';
+
+  const sortedKeys = Object.keys(categoriesCache).sort((a,b) => (categoriesCache[a].order || 0) - (categoriesCache[b].order || 0));
+
+  sortedKeys.forEach(catId => {
+    const cat = categoriesCache[catId];
+    const card = document.createElement('div');
+    card.className = 'menu-card';
+    card.setAttribute('onclick', `openCategory('${catId}')`);
+
+    let badgeHtml = '';
+    if(catId === 'notice') {
+      badgeHtml = `<span class="notice-badge hidden" id="noticeBadgeMenu">0</span>`;
+    }
+
+    card.innerHTML = `
+      <div class="icon" style="${catId==='standard'?'background:linear-gradient(135deg,#34c98f,#6de0b8);':''}">${cat.icon}${badgeHtml}</div>
+      <div class="text">
+        <h4>${escapeHtml(cat.name)}</h4>
+        <p>${cat.type==='board'?'안내글 및 게시사항 확인':'자료실 및 파일 확인'}</p>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+</script>
+
+<script>
+/* =========================================================
+   데이터 생성 / 삭제 / 수정 비즈니스 핸들러
+========================================================= */
+async function handleFileUpload(event, catId) {
+  const file = event.target.files[0];
+  if(!file) return;
+  if(!file.name.toLowerCase().endsWith('.pdf')) { alert('PDF 파일만 업로드할 수 있습니다.'); return; }
+
+  const btn = document.getElementById(`btn_${catId}`);
+  const status = document.getElementById(`status_${catId}`);
+  btn.disabled = true;
+  status.textContent = '업로드 중...';
+
+  try {
+    const fileUrl = await uploadToR2(file, 'pdf_files', (pct) => {
+      status.textContent = `업로드 중... ${pct}%`;
+    });
+    
+    const itemId = 'file_' + Date.now();
+    await dataRef.child(catId).child(itemId).set({
+      name: file.name,
+      url: fileUrl,
+      timestamp: Date.now()
+    });
+    status.textContent = '✅ 완료';
+  } catch(e) {
+    alert('업로드 오류 발생');
+    status.textContent = '❌ 실패';
+  } finally {
+    btn.disabled = false;
+    event.target.value = '';
+    setTimeout(() => { status.textContent = ''; }, 3000);
+  }
+}
+
+let activeEditorCatId = null;
+let activeEditorItemId = null;
+
+function openBoardEditor(catId, itemId = null) {
+  activeEditorCatId = catId;
+  activeEditorItemId = itemId;
+  attachedImageFile = null;
+
+  document.getElementById('boardImgFile').value = '';
+  document.getElementById('boardImgStatus').textContent = '';
+  document.getElementById('boardImgPrev').classList.add('hidden');
+  document.getElementById('noticeEditorMsg').textContent = '';
+
+  if(itemId) {
+    const item = dynamicDataCache[catId][itemId];
+    document.getElementById('noticeEditorTitle').textContent = '📝 글 수정';
+    document.getElementById('noticeTitleInput').value = item.title;
+    document.getElementById('noticeContentInput').value = item.content;
+    if(item.imageUrl) {
+      const img = document.getElementById('boardImgPrev');
+      img.src = item.imageUrl;
+      img.classList.remove('hidden');
+    }
+  } else {
+    document.getElementById('noticeEditorTitle').textContent = '📝 새 글 작성';
+    document.getElementById('noticeTitleInput').value = '';
+    document.getElementById('noticeContentInput').value = '';
+  }
+  document.getElementById('noticeEditorModal').classList.remove('hidden');
+}
+
+function closeNoticeEditor() {
+  document.getElementById('noticeEditorModal').classList.add('hidden');
+}
+
+async function saveBoardItem() {
+  const title = document.getElementById('noticeTitleInput').value.trim();
+  const content = document.getElementById('noticeContentInput').value.trim();
+  if(!title || !content) { alert('제목과 내용을 입력해 주세요.'); return; }
+
+  const confirmBtn = document.querySelector('#noticeEditorModal .modal-confirm');
+  confirmBtn.disabled = true;
+  document.getElementById('noticeEditorMsg').textContent = '저장 처리 중...';
+
+  try {
+    let imageUrl = "";
+    if(activeEditorItemId && dynamicDataCache[activeEditorCatId][activeEditorItemId].imageUrl) {
+      imageUrl = dynamicDataCache[activeEditorCatId][activeEditorItemId].imageUrl;
+    }
+
+    if(attachedImageFile) {
+      imageUrl = await uploadToR2(attachedImageFile, 'board_images', (pct) => {
+        document.getElementById('noticeEditorMsg').textContent = `이미지 업로드 중... ${pct}%`;
+      });
+    }
+
+    const dateStr = new Date().toLocaleString('ko-KR');
+
+    if(activeEditorItemId) {
+      await dataRef.child(activeEditorCatId).child(activeEditorItemId).update({
+        title, content, date: dateStr, imageUrl
+      });
+    } else {
+      const newItemId = 'board_' + Date.now();
+      await dataRef.child(activeEditorCatId).child(newItemId).set({
+        title, content, date: dateStr, timestamp: Date.now(), imageUrl
+      });
+    }
+    closeNoticeEditor();
+  } catch(e) {
+    alert('글 저장 중 오류가 발생했습니다.');
+  } finally {
+    confirmBtn.disabled = false;
+  }
+}
+
+async function deleteDataItem(catId, itemId) {
+  if(!confirm('이 항목을 정말 삭제하시겠습니까?')) return;
+  await dataRef.child(catId).child(itemId).remove();
+}
+</script>
+
+<script>
+/* =========================================================
+   일반 모드(회원용) 컨트롤 로직 (실시간 매핑 완료)
+========================================================= */
+function getUserPw() { return localStorage.getItem(USER_PW_KEY) || 'PUSDOC'; }
+function setUserPw(pw) { localStorage.setItem(USER_PW_KEY, pw); }
 
 function doLogin() {
   const id = document.getElementById('loginId').value.trim();
@@ -654,7 +856,7 @@ function doLogin() {
 function enterAdmin() {
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('adminScreen').classList.remove('hidden');
-  renderAdminFiles();
+  renderAdminAll();
 }
 
 function enterUser() {
@@ -676,218 +878,6 @@ function logout() {
   showMenu();
 }
 
-// 기존에 존재하던 즉시 실행 세션 복구 함수는 Firebase 데이터 정렬을 위해 제거하고, 
-// 대신 위의 checkInitialSessionRestore()가 완벽히 안전하게 연동을 바통 터치하도록 수정했습니다.
-
-document.getElementById('loginPw').addEventListener('keydown', e => {
-  if (e.key === 'Enter') doLogin();
-});
-
-/* =========================================================
-   관리자: 비밀번호 초기화 모달
-========================================================= */
-function openResetModal() {
-  document.getElementById('currentUserId').textContent = USER_ID;
-  document.getElementById('newUserPw').value = '';
-  document.getElementById('resetMsg').textContent = '';
-  document.getElementById('resetMsg').className = 'modal-msg';
-  document.getElementById('resetModal').classList.remove('hidden');
-}
-function closeResetModal() {
-  document.getElementById('resetModal').classList.add('hidden');
-}
-function resetUserPassword() {
-  const newPw = document.getElementById('newUserPw').value.trim();
-  const msg = document.getElementById('resetMsg');
-  if (!newPw) {
-    msg.textContent = '새 비밀번호를 입력해주세요.';
-    msg.className = 'modal-msg error';
-    return;
-  }
-  setUserPw(newPw);
-  msg.textContent = `비밀번호가 "${newPw}" 로 변경되었습니다.`;
-  msg.className = 'modal-msg success';
-}
-
-/* =========================================================
-   관리자: 파일 업로드 / 목록 / 삭제
-========================================================= */
-async function handleUpload(event, category) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-    alert('PDF 파일만 업로드 가능합니다.');
-    event.target.value = '';
-    return;
-  }
-
-  const btn = document.getElementById('btnEdu');
-  const status = document.getElementById('statusEdu');
-
-  btn.classList.add('loading');
-  btn.disabled = true;
-  status.textContent = '업로드 중...';
-
-  try {
-    await addFile(category, file.name, file, (pct) => {
-      status.textContent = `업로드 중... ${pct}%`;
-    });
-    status.textContent = '✅ 업로드 완료: ' + file.name;
-  } catch (err) {
-    console.error(err);
-    let hint = '';
-    if (err && err.message && err.message.includes('너무 큽니다')) {
-      hint = '';
-    } else if (err && (err.code === 'PERMISSION_DENIED' || (err.message && err.message.includes('PERMISSION_DENIED')))) {
-      hint = ' (Realtime Database 보안 규칙에서 쓰기 권한이 막혀있습니다.)';
-    }
-    status.textContent = '❌ 업로드 실패' + hint;
-    alert('업로드 중 오류가 발생했습니다.' + hint + '\n' + (err && err.message ? err.message : err));
-  } finally {
-    btn.classList.remove('loading');
-    btn.disabled = false;
-    event.target.value = '';
-    setTimeout(() => { status.textContent = ''; }, 4000);
-  }
-}
-
-async function deleteFile(category, id) {
-  if (!confirm('이 파일을 삭제하시겠습니까?')) return;
-  await deleteFileById(category, id);
-}
-
-function renderAdminFiles() {
-  renderAdminBoard('notice');
-  renderAdminBoard('standard');
-  const cat = 'edu';
-  const list = document.getElementById('listEdu');
-  const files = getFilesByCategory(cat);
-  list.innerHTML = '';
-  if (files.length === 0) {
-    list.innerHTML = '<li class="empty-msg">업로드된 파일이 없습니다.</li>';
-    return;
-  }
-  files.forEach(f => {
-    const li = document.createElement('li');
-    li.className = 'file-item';
-    li.innerHTML = `
-      <div class="fname">📄 <span class="label">${escapeHtml(f.name)}</span></div>
-      <button class="del-btn" onclick="deleteFile('${cat}','${f.id}')">삭제</button>
-    `;
-    list.appendChild(li);
-  });
-}
-
-function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
-
-/* =========================================================
-   관리자: 게시판 목록 / 작성 / 수정 / 삭제
-========================================================= */
-const BOARD_META = {
-  notice: { listId: 'listNotice', icon: '📢', label: '공지' },
-  standard: { listId: 'listStandard', icon: '📗', label: '글' }
-};
-
-function renderAdminBoard(board) {
-  const meta = BOARD_META[board];
-  const list = document.getElementById(meta.listId);
-  const items = getBoardItems(board);
-  list.innerHTML = '';
-  if (items.length === 0) {
-    list.innerHTML = `<li class="empty-msg">등록된 ${meta.label}이 없습니다.</li>`;
-    return;
-  }
-  items.forEach(n => {
-    const li = document.createElement('li');
-    li.className = 'file-item';
-    li.innerHTML = `
-      <div class="fname" style="cursor:pointer;" onclick="viewBoardItem('${board}','${n.id}')">
-        ${meta.icon} <span class="label">${escapeHtml(n.title)}</span>
-        <span style="color:#aaa; font-size:11px; margin-left:8px;">${n.date}</span>
-      </div>
-      <div style="display:flex; gap:6px;">
-        <button class="del-btn" style="background:#6d83ff;" onclick="openBoardEditor('${board}','${n.id}')">수정</button>
-        <button class="del-btn" onclick="removeBoardItem('${board}','${n.id}')">삭제</button>
-      </div>
-    `;
-    list.appendChild(li);
-  });
-}
-
-let editingBoard = null;
-let editingBoardId = null;
-
-function openBoardEditor(board, id) {
-  editingBoard = board;
-  editingBoardId = id || null;
-  const meta = BOARD_META[board];
-  const titleEl = document.getElementById('noticeEditorTitle');
-  const titleInput = document.getElementById('noticeTitleInput');
-  const contentInput = document.getElementById('noticeContentInput');
-  document.getElementById('noticeEditorMsg').textContent = '';
-
-  if (id) {
-    const item = getBoardItems(board).find(n => n.id === id);
-    titleEl.textContent = `${meta.icon} ${meta.label} 수정`;
-    titleInput.value = item ? item.title : '';
-    contentInput.value = item ? item.content : '';
-  } else {
-    titleEl.textContent = `${meta.icon} 새 ${meta.label} 작성`;
-    titleInput.value = '';
-    contentInput.value = '';
-  }
-  document.getElementById('noticeEditorModal').classList.remove('hidden');
-}
-
-function closeNoticeEditor() {
-  document.getElementById('noticeEditorModal').classList.add('hidden');
-  editingBoard = null;
-  editingBoardId = null;
-}
-
-function saveBoardItem() {
-  const title = document.getElementById('noticeTitleInput').value.trim();
-  const content = document.getElementById('noticeContentInput').value.trim();
-  const msg = document.getElementById('noticeEditorMsg');
-
-  if (!title || !content) {
-    msg.textContent = '제목과 내용을 모두 입력해주세요.';
-    msg.className = 'modal-msg error';
-    return;
-  }
-  addOrUpdateBoardItem(editingBoard, editingBoardId, title, content);
-  closeNoticeEditor();
-}
-
-function removeBoardItem(board, id) {
-  if (!confirm('이 글을 삭제하시겠습니까?')) return;
-  deleteBoardItem(board, id);
-}
-
-/* =========================================================
-   게시판 글 보기 (관리자/사용자 공통)
-========================================================= */
-function viewBoardItem(board, id) {
-  const item = getBoardItems(board).find(n => n.id === id);
-  if (!item) return;
-  document.getElementById('noticeViewTitle').textContent = item.title;
-  document.getElementById('noticeViewDate').textContent = item.date;
-  document.getElementById('noticeViewContent').textContent = item.content;
-  document.getElementById('noticeViewModal').classList.remove('hidden');
-}
-function closeNoticeView() {
-  document.getElementById('noticeViewModal').classList.add('hidden');
-}
-function viewNotice(id) { viewBoardItem('notice', id); }
-
-/* =========================================================
-   사용자: 메뉴 / 검색 / 미리보기
-========================================================= */
 function showMenu() {
   document.getElementById('menuView').classList.remove('hidden');
   document.getElementById('browseView').classList.add('hidden');
@@ -899,88 +889,48 @@ function openCategory(category) {
   currentCategory = category;
   document.getElementById('menuView').classList.add('hidden');
   document.getElementById('browseView').classList.remove('hidden');
-  let title = '📘 교육자료';
-  if (category === 'standard') title = '📗 업무 표준화';
-  if (category === 'notice') title = '📢 공지사항';
-  document.getElementById('userTitle').textContent = title;
+  
+  const catInfo = categoriesCache[category];
+  document.getElementById('userTitle').textContent = catInfo ? `${catInfo.icon} ${catInfo.name}` : '자료실';
   document.getElementById('searchInput').value = '';
   renderUserFiles();
 
-  if (category === 'notice') {
-    markNoticesRead();
-  }
+  if (category === 'notice') markNoticesRead();
 }
 
-/* =========================================================
-   공지사항 안 읽음 배지
-========================================================= */
-const NOTICE_LAST_SEEN_KEY = 'eduSiteNoticeLastSeenTs';
-
-function getNoticeLastSeenTs() {
-  return parseInt(localStorage.getItem(NOTICE_LAST_SEEN_KEY) || '0', 10);
-}
-function markNoticesRead() {
-  const maxTs = noticesCache.reduce((m, n) => Math.max(m, n.timestamp || 0), 0);
-  localStorage.setItem(NOTICE_LAST_SEEN_KEY, String(Math.max(maxTs, Date.now())));
-  updateNoticeBadge();
-}
-function updateNoticeBadge() {
-  const lastSeen = getNoticeLastSeenTs();
-  const unread = noticesCache.filter(n => (n.timestamp || 0) > lastSeen).length;
-  const headerBadge = document.getElementById('noticeBadgeHeader');
-  const menuBadge = document.getElementById('noticeBadgeMenu');
-  [headerBadge, menuBadge].forEach(el => {
-    if (!el) return;
-    if (unread > 0) {
-      el.textContent = unread > 99 ? '99+' : String(unread);
-      el.classList.remove('hidden');
-    } else {
-      el.classList.add('hidden');
-    }
-  });
-}
-
-function backToMenu() {
-  showMenu();
-}
+function backToMenu() { showMenu(); }
 
 function renderUserFiles() {
-  if (!currentCategory) return;
+  if (!currentCategory || !categoriesCache[currentCategory]) return;
   const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
   const container = document.getElementById('userFileList');
+  container.innerHTML = '';
 
-  if (currentCategory === 'notice' || currentCategory === 'standard') {
-    const board = currentCategory;
-    const meta = BOARD_META[board];
-    const iconBg = board === 'standard' ? '#34c98f' : '#6d83ff';
-    const items = getBoardItems(board).filter(n => n.title.toLowerCase().includes(keyword));
-    container.innerHTML = '';
-    if (items.length === 0) {
-      container.innerHTML = `<div class="no-result">등록된 ${meta.label}이 없습니다.</div>`;
+  const cat = categoriesCache[currentCategory];
+  const itemsData = dynamicDataCache[currentCategory] || {};
+  const items = Object.keys(itemsData).map(k => ({id: k, ...itemsData[k]})).sort((a,b) => b.timestamp - a.timestamp);
+
+  if (cat.type === 'board') {
+    const filtered = items.filter(n => n.title.toLowerCase().includes(keyword));
+    if (filtered.length === 0) {
+      container.innerHTML = `<div class="no-result">등록된 글이 없습니다.</div>`;
       return;
     }
-    items.forEach(n => {
+    filtered.forEach(n => {
       const div = document.createElement('div');
       div.className = 'doc-item';
-      div.innerHTML = `<div class="picon" style="background:${iconBg};">${meta.icon}</div>
+      div.innerHTML = `<div class="picon" style="background:#6d83ff;">📝</div>
         <div class="pname">${escapeHtml(n.title)}<br><span style="font-size:11px; color:#aaa;">${n.date}</span></div>`;
-      div.addEventListener('click', () => viewBoardItem(board, n.id));
+      div.addEventListener('click', () => viewBoardItem(currentCategory, n.id));
       container.appendChild(div);
     });
-    return;
-  }
-
-  if (currentCategory === 'edu') {
-    const files = getFilesByCategory(currentCategory)
-      .filter(f => f.name.toLowerCase().includes(keyword));
-
-    container.innerHTML = '';
-    if (files.length === 0) {
+  } else {
+    const filtered = items.filter(f => f.name.toLowerCase().includes(keyword));
+    if (filtered.length === 0) {
       container.innerHTML = '<div class="no-result">검색 결과가 없습니다.</div>';
       return;
     }
-
-    files.forEach(f => {
+    filtered.forEach(f => {
       const div = document.createElement('div');
       div.className = 'doc-item';
       div.innerHTML = `<div class="picon">PDF</div><div class="pname">${escapeHtml(f.name)}</div>`;
@@ -990,17 +940,30 @@ function renderUserFiles() {
   }
 }
 
-/* =========================================================
-   PDF 미리보기
-========================================================= */
-function openPreview(file) {
-  if (!file.url) {
-    alert('파일 URL을 불러올 수 없습니다.');
-    return;
+function viewBoardItem(catId, id) {
+  const item = dynamicDataCache[catId][id];
+  if (!item) return;
+  document.getElementById('noticeViewTitle').textContent = item.title;
+  document.getElementById('noticeViewDate').textContent = item.date;
+  document.getElementById('noticeViewContent').textContent = item.content;
+  
+  const imgWrap = document.getElementById('noticeViewImgWrap');
+  if(item.imageUrl) {
+    document.getElementById('noticeViewImg').src = item.imageUrl;
+    imgWrap.classList.remove('hidden');
+  } else {
+    imgWrap.classList.add('hidden');
   }
+  
+  document.getElementById('noticeViewModal').classList.remove('hidden');
+}
+
+function closeNoticeView() { document.getElementById('noticeViewModal').classList.add('hidden'); }
+
+function openPreview(file) {
+  if (!file.url) { alert('파일 주소가 올바르지 않습니다.'); return; }
   document.getElementById('previewTitle').textContent = file.name;
-  const viewerUrl = 'https://docs.google.com/viewer?embedded=true&url=' + encodeURIComponent(file.url);
-  document.getElementById('previewFrame').src = viewerUrl;
+  document.getElementById('previewFrame').src = 'https://docs.google.com/viewer?embedded=true&url=' + encodeURIComponent(file.url);
   document.getElementById('previewModal').classList.remove('hidden');
 }
 
@@ -1009,6 +972,37 @@ function closePreview() {
   document.getElementById('previewFrame').src = '';
 }
 
+/* 공지사항 뱃지 카운트 시스템 */
+const NOTICE_LAST_SEEN_KEY = 'eduSiteNoticeLastSeenTs';
+function getNoticeLastSeenTs() { return parseInt(localStorage.getItem(NOTICE_LAST_SEEN_KEY) || '0', 10); }
+function markNoticesRead() {
+  const noticesData = dynamicDataCache['notice'] || {};
+  const maxTs = Object.keys(noticesData).reduce((m, k) => Math.max(m, noticesData[k].timestamp || 0), 0);
+  localStorage.setItem(NOTICE_LAST_SEEN_KEY, String(Math.max(maxTs, Date.now())));
+  updateNoticeBadge();
+}
+function updateNoticeBadge() {
+  const lastSeen = getNoticeLastSeenTs();
+  const noticesData = dynamicDataCache['notice'] || {};
+  const unread = Object.keys(noticesData).filter(k => (noticesData[k].timestamp || 0) > lastSeen).length;
+  const headerBadge = document.getElementById('noticeBadgeHeader');
+  const menuBadge = document.getElementById('noticeBadgeMenu');
+  [headerBadge, menuBadge].forEach(el => {
+    if (!el) return;
+    if (unread > 0) {
+      el.textContent = unread > 99 ? '99+' : String(unread);
+      el.classList.remove('hidden');
+    } else { el.classList.add('hidden'); }
+  });
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+document.getElementById('loginPw').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 document.getElementById('previewFrame').addEventListener('contextmenu', e => e.preventDefault());
 </script>
 </body>

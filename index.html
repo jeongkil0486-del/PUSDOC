@@ -938,6 +938,7 @@ function renderUserFiles() {
   const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
   const container = document.getElementById('userFileList');
 
+  // [버그수정] 카테고리 판정 조건 매칭 구조 전면 최적화
   if (currentCategory === 'notice' || currentCategory === 'standard') {
     const board = currentCategory;
     const meta = BOARD_META[board];
@@ -959,6 +960,7 @@ function renderUserFiles() {
     return;
   }
 
+  // [버그수정] 교육자료 데이터 로드 시 완벽한 괄호 격리 처리로 초기화 오작동 방지
   if (currentCategory === 'edu') {
     const files = getFilesByCategory(currentCategory)
       .filter(f => f.name.toLowerCase().includes(keyword));

@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="PUS DOC">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236d83ff'/%3E%3Cstop offset='1' stop-color='%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='180' height='180' rx='36' fill='url(%23g)'/%3E%3Ctext x='90' y='112' font-size='48' font-weight='800' fill='white' text-anchor='middle' font-family='Arial'%3EPUS%3C/text%3E%3C/svg%3E">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236d83ff'/%3E%3Cstop offset='1' stop-color='%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='180' height='180' rx='36' fill='url(%23g)'/%3E%3Ctext x='90' y='112' font-size='48' font-weight='800' fill='white' text-anchor='middle' font-family='Arial'%3EPUS%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236d83ff'/%3E%3Cstop offset='1' stop-color='%23a78bfa'/%3E%3C/defs%3E%3Crect width='180' height='180' rx='36' fill='url(%23g)'/%3E%3Ctext x='90' y='112' font-size='48' font-weight='800' fill='white' text-anchor='middle' font-family='Arial'%3EPUS%3C/text%3E%3C/svg%3E">
 <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22PUS%20DOC%22%2C%22short_name%22%3A%22PUS%20DOC%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23f4f6fb%22%2C%22theme_color%22%3A%22%236d83ff%22%7D">
 <style>
   * { box-sizing: border-box; margin:0; padding:0; font-family: 'Apple SD Gothic Neo','Malgun Gothic',sans-serif; }
@@ -447,7 +447,23 @@ let noticesCache = [];
 let standardsCache = [];
 const boardCaches = { notice: () => noticesCache, standard: () => standardsCache };
 
-function makeBoardListener(ref, setCache, onUpdate) {
+// [진짜 버그 해결] 앱이 최초 로딩될 때 서버 데이터 수신 완료 여부를 체크하는 스위치
+let isNoticeLoaded = false;
+let isStandardLoaded = false;
+
+function checkInitialSessionRestore() {
+  // 공지사항과 업무표준화 데이터를 서버에서 완벽히 수신했다면 그제서야 자동 세션 복구 실행
+  if (isNoticeLoaded && isStandardLoaded) {
+    const session = localStorage.getItem(SESSION_KEY);
+    if (session === 'admin') {
+      enterAdmin();
+    } else if (session === 'user') {
+      enterUser();
+    }
+  }
+}
+
+function makeBoardListener(ref, setCache, markLoaded, onUpdate) {
   ref.on('value', (snapshot) => {
     const data = snapshot.val() || {};
     const list = Object.keys(data).map(id => ({
@@ -458,11 +474,13 @@ function makeBoardListener(ref, setCache, onUpdate) {
       timestamp: data[id].timestamp || 0
     })).sort((a,b) => b.timestamp - a.timestamp);
     setCache(list);
+    markLoaded(); // 데이터 로딩 완료 체크
     onUpdate();
+    checkInitialSessionRestore(); // 최초 실행 타이밍 강제 조율
   }, (err) => console.error('Firebase board listener error:', err));
 }
 
-makeBoardListener(noticesRef, (list) => { noticesCache = list; }, () => {
+makeBoardListener(noticesRef, (list) => { noticesCache = list; }, () => { isNoticeLoaded = true; }, () => {
   if (!document.getElementById('adminScreen').classList.contains('hidden')) {
     renderAdminBoard('notice');
   }
@@ -472,7 +490,7 @@ makeBoardListener(noticesRef, (list) => { noticesCache = list; }, () => {
   }
 });
 
-makeBoardListener(standardsRef, (list) => { standardsCache = list; }, () => {
+makeBoardListener(standardsRef, (list) => { standardsCache = list; }, () => { isStandardLoaded = true; }, () => {
   if (!document.getElementById('adminScreen').classList.contains('hidden')) {
     renderAdminBoard('standard');
   }
@@ -520,7 +538,6 @@ function deleteBoardItem(board, id) {
   boardRefs[board].child(id).remove();
 }
 
-/* 공지사항 호환용 별칭 */
 function getNotices() { return getBoardItems('notice'); }
 
 /* =========================================================
@@ -659,14 +676,8 @@ function logout() {
   showMenu();
 }
 
-(function restoreSession() {
-  const session = localStorage.getItem(SESSION_KEY);
-  if (session === 'admin') {
-    enterAdmin();
-  } else if (session === 'user') {
-    enterUser();
-  }
-})();
+// 기존에 존재하던 즉시 실행 세션 복구 함수는 Firebase 데이터 정렬을 위해 제거하고, 
+// 대신 위의 checkInitialSessionRestore()가 완벽히 안전하게 연동을 바통 터치하도록 수정했습니다.
 
 document.getElementById('loginPw').addEventListener('keydown', e => {
   if (e.key === 'Enter') doLogin();
@@ -938,7 +949,6 @@ function renderUserFiles() {
   const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
   const container = document.getElementById('userFileList');
 
-  // [버그수정] 카테고리 판정 조건 매칭 구조 전면 최적화
   if (currentCategory === 'notice' || currentCategory === 'standard') {
     const board = currentCategory;
     const meta = BOARD_META[board];
@@ -960,7 +970,6 @@ function renderUserFiles() {
     return;
   }
 
-  // [버그수정] 교육자료 데이터 로드 시 완벽한 괄호 격리 처리로 초기화 오작동 방지
   if (currentCategory === 'edu') {
     const files = getFilesByCategory(currentCategory)
       .filter(f => f.name.toLowerCase().includes(keyword));

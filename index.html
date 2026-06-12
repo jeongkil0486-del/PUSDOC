@@ -651,23 +651,23 @@ function renderAdminAll() {
       const li = document.createElement('li');
       li.className = 'file-item';
       if(cat.type === 'board') {
-        // [수정완료] 관리자 목록 화면에서 단순 아이콘(🖼️) 대신 원본 이미지 미리보기가 작게 바로 노출되도록 <img> 구현 추가
+        // [미리보기 버그 완전 해결] 이미지 주소가 존재할 경우 원본 <img>를 출력하여 목록에 바로 미리보기가 보이도록 확실히 구현
         let imgPreviewHtml = "";
         if(item.imageUrl) {
-          imgPreviewHtml = `<div style="margin-top:6px; display:block;"><img src="${item.imageUrl}" style="max-width:120px; max-height:80px; border-radius:4px; border:1px solid #ddd; box-shadow:0 2px 6px rgba(0,0,0,0.05);"></div>`;
+          imgPreviewHtml = `<div style="margin-top:8px; display:block;"><img src="${item.imageUrl}" style="max-width:180px; max-height:120px; border-radius:6px; border:1px solid #ddd; box-shadow:0 3px 8px rgba(0,0,0,0.08); object-fit:cover;"></div>`;
         }
         
         li.innerHTML = `
-          <div class="fname" style="cursor:pointer;" onclick="viewBoardItem('${catId}','${item.id}')">
+          <div class="fname" style="cursor:pointer; display:block; width:100%;" onclick="viewBoardItem('${catId}','${item.id}')">
             <div>
-              📝 <span class="label" style="font-weight:600;">${escapeHtml(item.title)}</span>
+              📝 <span class="label" style="font-weight:600; font-size:14px; color:#2b2f3e;">${escapeHtml(item.title)}</span>
               <span style="color:#aaa; font-size:11px; margin-left:8px;">${item.date}</span>
             </div>
             ${imgPreviewHtml}
           </div>
-          <div style="display:flex; gap:6px;">
-            <button class="del-btn" style="background:#6d83ff;" onclick="openBoardEditor('${catId}','${item.id}')">수정</button>
-            <button class="del-btn" onclick="deleteDataItem('${catId}','${item.id}')">삭제</button>
+          <div style="display:flex; gap:6px; flex-shrink:0;">
+            <button class="del-btn" style="background:#6d83ff;" onclick="openBoardEditor('${catId}','${item.id}'); event.stopPropagation();">수정</button>
+            <button class="del-btn" onclick="deleteDataItem('${catId}','${item.id}'); event.stopPropagation();">삭제</button>
           </div>
         `;
       } else {

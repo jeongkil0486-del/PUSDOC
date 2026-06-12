@@ -11,9 +11,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="PUS DOC">
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236d83ff'/%3E%3Cstop offset='1' stop-color='%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='180' height='180' rx='36' fill='url(%23g)'/%3E%3Ctext x='90' y='112' font-size='48' font-weight='800' fill='white' text-anchor='middle' font-family='Arial'%3EPUS%3C/text%3E%3C/svg%3E">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236d83ff'/%3E%3Cstop offset='1' stop-color='%23a78bfa'/%3E%3C/defs%3E%3Crect width='180' height='180' rx='36' fill='url(%23g)'/%3E%3Ctext x='90' y='112' font-size='48' font-weight='800' fill='white' text-anchor='middle' font-family='Arial'%3EPUS%3C/text%3E%3C/svg%3E">
-<link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22PUS%20DOC%22%2C%22short_name%22%3A%22PUS%20DOC%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23f4f6fb%22%2C%22theme_color%22%3A%22%236d83ff%22%7D">
+<link class="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236d83ff'/%3E%3Cstop offset='1' stop-color='%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='180' height='180' rx='36' fill='url(%23g)'/%3E%3Ctext x='90' y='112' font-size='48' font-weight='800' fill='white' text-anchor='middle' font-family='Arial'%3EPUS%3C/text%3E%3C/svg%3E">
+<link class="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236d83ff'/%3E%3Cstop offset='1' stop-color='%23a78bfa'/%3E%3C/defs%3E%3Crect width='180' height='180' rx='36' fill='url(%23g)'/%3E%3Ctext x='90' y='112' font-size='48' font-weight='800' fill='white' text-anchor='middle' font-family='Arial'%3EPUS%3C/text%3E%3C/svg%3E">
+<link class="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22PUS%20DOC%22%2C%22short_name%22%3A%22PUS%20DOC%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23f4f6fb%22%2C%22theme_color%22%3A%22%236d83ff%22%7D">
 <style>
   * { box-sizing: border-box; margin:0; padding:0; font-family: 'Apple SD Gothic Neo','Malgun Gothic',sans-serif; }
   body { background:#f4f6fb; min-height:100vh; }
@@ -444,7 +444,6 @@ let currentCategory = null;
 let isCategoriesLoaded = false;
 let isDataLoaded = false;
 
-// 초기 카테고리가 데이터베이스에 없을 경우 자동 생성 세팅
 function initDefaultCategories() {
   categoriesRef.once('value', snapshot => {
     if(!snapshot.exists()) {
@@ -458,7 +457,6 @@ function initDefaultCategories() {
 }
 initDefaultCategories();
 
-// 카테고리 실시간 동기화 리스너
 categoriesRef.on('value', snapshot => {
   categoriesCache = snapshot.val() || {};
   isCategoriesLoaded = true;
@@ -467,7 +465,6 @@ categoriesRef.on('value', snapshot => {
   checkInitialSessionRestore();
 });
 
-// 데이터 전체 실시간 동기화 리스너
 dataRef.on('value', snapshot => {
   dynamicDataCache = snapshot.val() || {};
   isDataLoaded = true;
@@ -488,7 +485,7 @@ function checkInitialSessionRestore() {
 
 <script>
 /* =========================================================
-   카테고리 생성 / 수정 / 삭제 로직 (실시간 일반모드 반영)
+   카테고리 생성 / 수정 / 삭제 로직
 ========================================================= */
 let editingCategoryId = null;
 
@@ -519,10 +516,8 @@ function saveCategory() {
   if(!name) { alert('이름을 입력해주세요.'); return; }
 
   if(editingCategoryId) {
-    // 수정
     categoriesRef.child(editingCategoryId).update({ name: name });
   } else {
-    // 생성
     const newId = 'cat_' + Date.now();
     const icon = type === 'board' ? '📝' : '📁';
     const order = Object.keys(categoriesCache).length + 1;
@@ -597,7 +592,7 @@ function previewBoardImage(event) {
 
 <script>
 /* =========================================================
-   관리자 / 사용자 UI 렌더링 엔진 (실시간 구조)
+   관리자 / 사용자 UI 렌더링 엔진
 ========================================================= */
 function renderAdminAll() {
   const container = document.getElementById('adminSectionsContainer');
@@ -616,7 +611,6 @@ function renderAdminAll() {
     const section = document.createElement('div');
     section.className = 'category-section';
 
-    // 헤더 구조 생성 (연필 아이콘 및 삭제버튼 배치)
     section.innerHTML = `
       <div class="category-title-wrap">
         <h3>
@@ -641,7 +635,6 @@ function renderAdminAll() {
     }
     section.appendChild(row);
 
-    // 목록 바인딩
     const ul = document.createElement('ul');
     ul.className = 'file-list';
     const itemsData = dynamicDataCache[catId] || {};
@@ -658,10 +651,19 @@ function renderAdminAll() {
       const li = document.createElement('li');
       li.className = 'file-item';
       if(cat.type === 'board') {
+        // [수정완료] 관리자 목록 화면에서 단순 아이콘(🖼️) 대신 원본 이미지 미리보기가 작게 바로 노출되도록 <img> 구현 추가
+        let imgPreviewHtml = "";
+        if(item.imageUrl) {
+          imgPreviewHtml = `<div style="margin-top:6px; display:block;"><img src="${item.imageUrl}" style="max-width:120px; max-height:80px; border-radius:4px; border:1px solid #ddd; box-shadow:0 2px 6px rgba(0,0,0,0.05);"></div>`;
+        }
+        
         li.innerHTML = `
           <div class="fname" style="cursor:pointer;" onclick="viewBoardItem('${catId}','${item.id}')">
-            📝 <span class="label">${escapeHtml(item.title)}</span>
-            <span style="color:#aaa; font-size:11px; margin-left:8px;">${item.date}</span>
+            <div>
+              📝 <span class="label" style="font-weight:600;">${escapeHtml(item.title)}</span>
+              <span style="color:#aaa; font-size:11px; margin-left:8px;">${item.date}</span>
+            </div>
+            ${imgPreviewHtml}
           </div>
           <div style="display:flex; gap:6px;">
             <button class="del-btn" style="background:#6d83ff;" onclick="openBoardEditor('${catId}','${item.id}')">수정</button>
@@ -832,7 +834,7 @@ async function deleteDataItem(catId, itemId) {
 
 <script>
 /* =========================================================
-   일반 모드(회원용) 컨트롤 로직 (실시간 매핑 완료)
+   일반 모드(회원용) 컨트롤 로직
 ========================================================= */
 function getUserPw() { return localStorage.getItem(USER_PW_KEY) || 'PUSDOC'; }
 function setUserPw(pw) { localStorage.setItem(USER_PW_KEY, pw); }
@@ -924,6 +926,7 @@ function renderUserFiles() {
       div.addEventListener('click', () => viewBoardItem(currentCategory, n.id));
       container.appendChild(div);
     });
+    return;
   } else {
     const filtered = items.filter(f => f.name.toLowerCase().includes(keyword));
     if (filtered.length === 0) {
@@ -972,7 +975,6 @@ function closePreview() {
   document.getElementById('previewFrame').src = '';
 }
 
-/* 공지사항 뱃지 카운트 시스템 */
 const NOTICE_LAST_SEEN_KEY = 'eduSiteNoticeLastSeenTs';
 function getNoticeLastSeenTs() { return parseInt(localStorage.getItem(NOTICE_LAST_SEEN_KEY) || '0', 10); }
 function markNoticesRead() {

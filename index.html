@@ -268,6 +268,18 @@
     width:100%; height:100%; border:none; background:#fff;
   }
 
+  /* ===== IMAGE FULLSCREEN VIEW OVERLAY ===== */
+  /* [추가 기능] 목록 이미지를 클릭했을 때 전체화면에 꽉 차게 띄워주는 고급 오버레이 레이아웃 */
+  .image-fullscreen-overlay {
+    position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:5000;
+    display:flex; align-items:center; justify-content:center; cursor:zoom-out;
+  }
+  .image-fullscreen-overlay img {
+    max-width:98vw; max-height:98vh; object-fit:contain;
+    animation: zoomInAnim 0.2s ease-out;
+  }
+  @keyframes zoomInAnim { from { transform:scale(0.9); opacity:0; } to { transform:scale(1); opacity:1; } }
+
   /* ===== MODAL GENERAL STYLE ===== */
   .modal-overlay {
     position:fixed; top:0; left:0; width:100%; height:100%;
@@ -300,6 +312,10 @@
 </style>
 </head>
 <body>
+
+<div id="fullscreenImageViewer" class="image-fullscreen-overlay hidden" onclick="closeFullscreenImage()">
+  <img id="fullscreenImageTarget" src="" alt="확대보기">
+</div>
 
 <div id="loginScreen">
   <div class="login-box">
@@ -400,7 +416,7 @@
     <div id="noticeViewDate" style="font-size:11px; color:#aaa; margin-bottom:14px;"></div>
     <div id="noticeViewContent" style="font-size:14px; color:#333; line-height:1.6; white-space:pre-wrap; max-height:250px; overflow-y:auto; margin-bottom:14px;"></div>
     <div id="noticeViewImgWrap" style="text-align:center; margin-bottom:14px;" class="hidden">
-      <img id="noticeViewImg" style="max-width:100%; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1);">
+      <img id="noticeViewImg" style="max-width:100%; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); cursor:zoom-in;" onclick="openFullscreenImage(this.src)">
     </div>
     <div class="modal-actions">
       <button class="modal-cancel" onclick="closeNoticeView()" style="flex:1;">닫기</button>
@@ -480,6 +496,21 @@ function checkInitialSessionRestore() {
     if (session === 'admin') enterAdmin();
     else if (session === 'user') enterUser();
   }
+}
+</script>
+
+<script>
+/* =========================================================
+   전체화면 확대보기 전용 기능 함수
+========================================================= */
+function openFullscreenImage(src) {
+  if(!src) return;
+  document.getElementById('fullscreenImageTarget').src = src;
+  document.getElementById('fullscreenImageViewer').classList.remove('hidden');
+}
+function closeFullscreenImage() {
+  document.getElementById('fullscreenImageViewer').classList.add('hidden');
+  document.getElementById('fullscreenImageTarget').src = '';
 }
 </script>
 
@@ -651,10 +682,10 @@ function renderAdminAll() {
       const li = document.createElement('li');
       li.className = 'file-item';
       if(cat.type === 'board') {
-        // [미리보기 버그 완전 해결] 이미지 주소가 존재할 경우 원본 <img>를 출력하여 목록에 바로 미리보기가 보이도록 확실히 구현
+        // [업로드 후 상시 노출 및 클릭 시 확대 반영] 이미지 클릭 시 다른 팝업 방해 없이 즉시 크게 보도록 openFullscreenImage 연결 연동
         let imgPreviewHtml = "";
         if(item.imageUrl) {
-          imgPreviewHtml = `<div style="margin-top:8px; display:block;"><img src="${item.imageUrl}" style="max-width:180px; max-height:120px; border-radius:6px; border:1px solid #ddd; box-shadow:0 3px 8px rgba(0,0,0,0.08); object-fit:cover;"></div>`;
+          imgPreviewHtml = `<div style="margin-top:10px; display:block;"><img src="${item.imageUrl}" style="max-width:200px; max-height:140px; border-radius:6px; border:1px solid #ddd; box-shadow:0 3px 10px rgba(0,0,0,0.1); object-fit:cover; cursor:zoom-in;" onclick="openFullscreenImage('${item.imageUrl}'); event.stopPropagation();"></div>`;
         }
         
         li.innerHTML = `
@@ -919,10 +950,22 @@ function renderUserFiles() {
       return;
     }
     filtered.forEach(n => {
+      // [회원모드 목록에도 이미지 노출 및 클릭 시 전체화면 기능 구현] 
+      let userImgPreviewHtml = "";
+      if(n.imageUrl) {
+        userImgPreviewHtml = `<div style="margin-top:10px;"><img src="${n.imageUrl}" style="max-width:160px; max-height:110px; border-radius:6px; border:1px solid #eef0fa; box-shadow:0 2px 6px rgba(0,0,0,0.05); object-fit:cover; cursor:zoom-in;" onclick="openFullscreenImage('${n.imageUrl}'); event.stopPropagation();"></div>`;
+      }
+
       const div = document.createElement('div');
       div.className = 'doc-item';
-      div.innerHTML = `<div class="picon" style="background:#6d83ff;">📝</div>
-        <div class="pname">${escapeHtml(n.title)}<br><span style="font-size:11px; color:#aaa;">${n.date}</span></div>`;
+      div.style.display = 'block'; // 가로 정렬 레이아웃 해제 후 한 칸 전체 차지하도록 유도
+      div.innerHTML = `
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div class="picon" style="background:#6d83ff; flex-shrink:0;">📝</div>
+          <div class="pname" style="font-weight:600;">${escapeHtml(n.title)}<br><span style="font-size:11px; color:#aaa; font-weight:normal;">${n.date}</span></div>
+        </div>
+        ${userImgPreviewHtml}
+      `;
       div.addEventListener('click', () => viewBoardItem(currentCategory, n.id));
       container.appendChild(div);
     });

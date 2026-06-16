@@ -478,6 +478,18 @@
       </div>
     </div>
 
+    <!-- STEP 4: 특정 월 스케줄 삭제 -->
+    <div style="background:#fff5f5; border:1px dashed #ff7675; border-radius:10px; padding:14px; margin-top:12px;">
+      <div style="font-size:13px; font-weight:700; color:#e25b5b; margin-bottom:8px;">③ 특정 월 스케줄 삭제</div>
+      <div style="font-size:11px; color:#888; margin-bottom:10px; line-height:1.6;">
+        선택한 년/월의 스케줄만 전직원 대상으로 삭제합니다.<br>
+        상단에서 선택한 <b>대상 년월</b> 기준으로 삭제됩니다.
+      </div>
+      <button class="upload-btn" style="background:linear-gradient(135deg,#ff7675,#e25b5b); padding:9px 18px;" onclick="deleteMonthSchedule()">
+        🗑️ 선택 월 스케줄 삭제
+      </button>
+    </div>
+
     <div id="adminScheduleInfoPanel" style="font-size:12px; color:#6d83ff; font-weight:600; margin-top:12px;">조회중...</div>
 
     <!-- 업로드 이력 패널 -->
@@ -557,6 +569,7 @@
       <option value="board">📝 글 작성 게시판 형태 (공지사항 등)</option>
       <option value="file">📁 PDF 파일 업로드 형태 (교육자료 등)</option>
       <option value="schedule">📅 개인 스케줄 달력 연동 형태</option>
+      <option value="link">🔗 링크 바로가기 목록 형태</option>
     </select>
     <div class="modal-actions">
       <button class="modal-cancel" onclick="closeCategoryModal()">취소</button>
@@ -600,6 +613,20 @@
     </div>
     <div class="modal-actions">
       <button class="modal-cancel" onclick="closeNoticeView()" style="flex:1;">닫기</button>
+    </div>
+  </div>
+</div>
+
+<div id="linkEditorModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h3 id="linkEditorTitle">🔗 새 링크 추가</h3>
+    <label for="linkTitleInput">링크 제목</label>
+    <input type="text" id="linkTitleInput" placeholder="예: 회사 홈페이지">
+    <label for="linkUrlInput">링크 URL</label>
+    <input type="url" id="linkUrlInput" placeholder="https://example.com">
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeLinkEditor()">취소</button>
+      <button class="modal-confirm" onclick="saveLinkItem()">저장</button>
     </div>
   </div>
 </div>
@@ -931,6 +958,7 @@ function saveCategory() {
     let icon = '📁';
     if(type === 'board') icon = '📝';
     if(type === 'schedule') icon = '📅';
+    if(type === 'link') icon = '🔗';
     const order = Object.keys(categoriesCache).length + 1;
     categoriesRef.child(newId).set({ name, type, icon, order });
   }
@@ -938,17 +966,26 @@ function saveCategory() {
 }
 
 function moveCategoryOrder(id, direction) {
+  // order 값을 1부터 순서대로 정규화한 뒤 swap
   const sorted = Object.keys(categoriesCache).sort((a,b) => (categoriesCache[a].order||0) - (categoriesCache[b].order||0));
   const idx = sorted.indexOf(id);
   const swapIdx = idx + direction;
   if(swapIdx < 0 || swapIdx >= sorted.length) return;
-  const swapId = sorted[swapIdx];
-  const orderA = categoriesCache[id].order || idx + 1;
-  const orderB = categoriesCache[swapId].order || swapIdx + 1;
-  const updates = {};
-  updates[id + '/order'] = orderB;
-  updates[swapId + '/order'] = orderA;
-  categoriesRef.update(updates);
+
+  // 전체 order를 1,2,3... 으로 정규화 후 두 항목만 swap
+  const newOrders = {};
+  sorted.forEach((k, i) => { newOrders[k] = i + 1; });
+  newOrders[sorted[idx]]     = swapIdx + 1;
+  newOrders[sorted[swapIdx]] = idx + 1;
+
+  // 로컬 캐시 즉시 반영 (Firebase 응답 전 re-render 대비)
+  sorted.forEach(k => { categoriesCache[k].order = newOrders[k]; });
+
+  // Firebase 일괄 저장
+  sorted.forEach(k => { categoriesRef.child(k).update({ order: newOrders[k] }); });
+
+  renderAdminAll();
+  renderUserMenu();
 }
 
 function deleteCategory(id) {
@@ -1180,6 +1217,35 @@ async function clearSystemSchedules() {
   await scheduleMetaRef.remove();
   alert('전체 스케줄이 삭제되었습니다.');
 }
+
+async function deleteMonthSchedule() {
+  const year  = parseInt(document.getElementById('adminSchYear').value, 10);
+  const month = parseInt(document.getElementById('adminSchMonth').value, 10);
+  const MM = month < 10 ? '0' + month : String(month);
+  const label = `${year}년 ${month}월`;
+
+  if(!confirm(`[${label}] 스케줄을 전직원 대상으로 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
+
+  try {
+    const empIds = Object.keys(scheduleMasterCache);
+    if(empIds.length === 0) { alert('삭제할 스케줄 데이터가 없습니다.'); return; }
+
+    const promises = empIds.map(async empId => {
+      const empDates = scheduleMasterCache[empId] || {};
+      const keysToDelete = Object.keys(empDates).filter(d => d.startsWith(`${year}-${MM}`));
+      return Promise.all(keysToDelete.map(d => scheduleMasterRef.child(empId).child(d).remove()));
+    });
+    await Promise.all(promises);
+
+    const metaKey = `${year}${MM}`;
+    await scheduleMetaRef.child(metaKey).remove();
+
+    alert(`[${label}] 스케줄이 삭제되었습니다.`);
+  } catch(e) {
+    console.error(e);
+    alert('삭제 중 오류가 발생했습니다.');
+  }
+}
 </script>
 
 <script>
@@ -1248,6 +1314,8 @@ function renderAdminAll() {
 
     if(cat.type === 'board') {
       row.innerHTML = `<button class="upload-btn" onclick="openBoardEditor('${catId}')">새 글 작성</button>`;
+    } else if(cat.type === 'link') {
+      row.innerHTML = `<button class="upload-btn" style="background:linear-gradient(135deg,#ff9f43,#ff793f);" onclick="openLinkEditor('${catId}')">🔗 링크 추가</button>`;
     } else {
       row.innerHTML = `
         <button class="upload-btn" id="btn_${catId}" onclick="document.getElementById('file_${catId}').click()">PDF 업로드</button>
@@ -1303,6 +1371,11 @@ function renderAdminAll() {
             <button class="del-btn" style="background:#6d83ff;" onclick="openBoardEditor('${catId}','${item.id}'); event.stopPropagation();">수정</button>
             <button class="del-btn" onclick="deleteDataItem('${catId}','${item.id}'); event.stopPropagation();">삭제</button>
           </div>
+        `;
+      } else if(cat.type === 'link') {
+        li.innerHTML = `
+          <div class="fname">🔗 <span class="label">${escapeHtml(item.title)}</span> <span style="font-size:11px; color:#aaa;">${escapeHtml(item.url)}</span></div>
+          <button class="del-btn" onclick="deleteDataItem('${catId}','${item.id}')">삭제</button>
         `;
       } else {
         li.innerHTML = `
@@ -1470,6 +1543,40 @@ async function saveBoardItem() {
 async function deleteDataItem(catId, itemId) {
   if(!confirm('이 항목을 정말 삭제하시겠습니까?')) return;
   await dataRef.child(catId).child(itemId).remove();
+}
+
+let activeLinkEditorCatId = null;
+
+function openLinkEditor(catId) {
+  activeLinkEditorCatId = catId;
+  document.getElementById('linkTitleInput').value = '';
+  document.getElementById('linkUrlInput').value = '';
+  document.getElementById('linkEditorModal').classList.remove('hidden');
+}
+
+function closeLinkEditor() {
+  document.getElementById('linkEditorModal').classList.add('hidden');
+}
+
+async function saveLinkItem() {
+  const title = document.getElementById('linkTitleInput').value.trim();
+  const url   = document.getElementById('linkUrlInput').value.trim();
+  if(!title || !url) { alert('제목과 URL을 모두 입력해 주세요.'); return; }
+  if(!/^https?:\/\//i.test(url)) { alert('URL은 http:// 또는 https:// 로 시작해야 합니다.'); return; }
+
+  const confirmBtn = document.querySelector('#linkEditorModal .modal-confirm');
+  confirmBtn.disabled = true;
+  try {
+    const newId = 'link_' + Date.now();
+    await dataRef.child(activeLinkEditorCatId).child(newId).set({
+      title, url, timestamp: Date.now()
+    });
+    closeLinkEditor();
+  } catch(e) {
+    alert('링크 저장 중 오류가 발생했습니다.');
+  } finally {
+    confirmBtn.disabled = false;
+  }
 }
 </script>
 
@@ -2053,6 +2160,26 @@ function renderUserFiles() {
         ${userImgPreviewHtml}
       `;
       div.addEventListener('click', () => viewBoardItem(currentCategory, n.id));
+      container.appendChild(div);
+    });
+    return;
+  } else if (cat.type === 'link') {
+    const filtered = items.filter(f => f.title.toLowerCase().includes(keyword));
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="no-result">등록된 링크가 없습니다.</div>';
+      return;
+    }
+    filtered.forEach(f => {
+      const div = document.createElement('div');
+      div.className = 'doc-item';
+      div.innerHTML = `
+        <div class="picon" style="background:linear-gradient(135deg,#ff9f43,#ff793f);">🔗</div>
+        <div class="pname">
+          <span style="font-weight:600; color:#2b2f3e;">${escapeHtml(f.title)}</span><br>
+          <span style="font-size:11px; color:#9095ab;">${escapeHtml(f.url)}</span>
+        </div>
+      `;
+      div.addEventListener('click', () => window.open(f.url, '_blank'));
       container.appendChild(div);
     });
     return;

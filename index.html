@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght=600;700&family=Poppins:wght=400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght=600;700&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>PUS DOC</title>
 <meta name="theme-color" content="#6d83ff">
@@ -382,7 +382,7 @@
   .modal-cancel { background:#eee; color:#555; }
   .modal-confirm { background:linear-gradient(135deg,#6d83ff,#8b6df8); color:#fff; }
 
-  /* ===== 신규 추가: 변경 내역 전용 스타일 모듈 ===== */
+  /* ===== 변경 내역 전용 스타일 모듈 ===== */
   .history-bell-btn { background: linear-gradient(135deg,#ff9f43,#ff793f); color: #fff; border: none; padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px; position: relative; }
   .history-bell-btn .bell-badge { background: #e74c3c; color: #fff; font-size: 10px; padding: 1px 5px; border-radius: 10px; font-weight: 800; }
   .history-clear-btn { background: #fff; color: #777; border: 1px solid #ddd; padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
@@ -441,12 +441,14 @@
       <button class="delete-category-btn" style="color: #e25b5b;" onclick="clearSystemSchedules()">❌ 전체 스케줄 삭제</button>
     </div>
 
+    <!-- STEP 1: 년/월 선택 -->
     <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
       <span style="font-size:13px; font-weight:700; color:#6d83ff;">📆 대상 년월 선택</span>
       <select id="adminSchYear" style="padding:7px 12px; border-radius:8px; border:1px solid #c5caee; font-size:14px; font-weight:600; color:#2b2f3e; background:#fff;"></select>
       <select id="adminSchMonth" style="padding:7px 12px; border-radius:8px; border:1px solid #c5caee; font-size:14px; font-weight:600; color:#2b2f3e; background:#fff;"></select>
     </div>
 
+    <!-- STEP 2: 양식 다운로드 -->
     <div style="background:#f0f7ff; border:1px dashed #7b8cff; border-radius:10px; padding:14px; margin-bottom:12px;">
       <div style="font-size:13px; font-weight:700; color:#4e65df; margin-bottom:8px;">① 근무표 양식 다운로드</div>
       <div style="font-size:11px; color:#888; margin-bottom:10px; line-height:1.6;">
@@ -458,6 +460,7 @@
       </button>
     </div>
 
+    <!-- STEP 3: 파일 업로드 -->
     <div style="background:#f8f0ff; border:1px dashed #a78bfa; border-radius:10px; padding:14px;">
       <div style="font-size:13px; font-weight:700; color:#8b6df8; margin-bottom:8px;">② 작성 완료된 근무표 업로드</div>
       <div style="font-size:11px; color:#888; margin-bottom:10px; line-height:1.6;">
@@ -475,6 +478,7 @@
 
     <div id="adminScheduleInfoPanel" style="font-size:12px; color:#6d83ff; font-weight:600; margin-top:12px;">조회중...</div>
 
+    <!-- 업로드 이력 패널 -->
     <div style="margin-top:14px;">
       <div style="font-size:13px; font-weight:700; color:#4e65df; margin-bottom:8px;">📋 업로드 이력 (새로고침 후에도 유지)</div>
       <div id="adminUploadHistoryPanel" style="background:#f8f9fd; border:1px solid #eef0fa; border-radius:10px; padding:10px; min-height:40px; font-size:12px; color:#555; line-height:1.8;">
@@ -508,6 +512,7 @@
         <select id="calendarYearSelect" onchange="renderScheduleCalendar()"></select>
         <select id="calendarMonthSelect" onchange="renderScheduleCalendar()"></select>
         
+        <!-- 직원 모드 변경 내역 인터페이스 영역 -->
         <button class="history-bell-btn" onclick="toggleHistoryPopup(event)">
           변경 내역 <span class="bell-badge hidden" id="historyCountBadge">0</span>
         </button>
@@ -703,8 +708,14 @@ scheduleMasterRef.on('value', snapshot => {
       }
     } catch(e) { /* 자동 보정 실패 시 무시 */ }
   }
+
+  // 📌 데이터 로드 시 사용자가 메뉴 진입을 안 해도 배경에서 실시간 스케줄 변경 이력을 선제 계산합니다.
+  checkScheduleChangesBackground();
+
   if (currentCategory && categoriesCache[currentCategory]?.type === 'schedule') {
     renderScheduleCalendar();
+  } else {
+    renderUserMenu();
   }
 });
 
@@ -1245,7 +1256,7 @@ function renderAdminAll() {
       schDiv.style.textAlign = 'left';
       schDiv.style.color = '#4e65df';
       schDiv.innerHTML = `📅 <strong>근무 스케줄 관리 안내:</strong><br>본 항목은 상단에 위치한 '스마트 엑셀 스케줄 관리 엔진' 업로더와 자동 맵핑되는 고유 시스템입니다. 수정 및 파일 변경은 상단 업로더를 이용하세요.`;
-      section.appendChild(schDiv);
+      schDiv.appendChild(schDiv);
       container.appendChild(section);
       return;
     }
@@ -1331,6 +1342,7 @@ function renderUserMenu() {
   container.innerHTML = '';
 
   const sortedKeys = Object.keys(categoriesCache).sort((a,b) => (categoriesCache[a].order || 0) - (categoriesCache[b].order || 0));
+  const myEmpId = (localStorage.getItem(LOGGED_IN_ID_KEY) || '').trim();
 
   sortedKeys.forEach(catId => {
     const cat = categoriesCache[catId];
@@ -1338,9 +1350,21 @@ function renderUserMenu() {
     card.className = 'menu-card';
     card.setAttribute('onclick', `openCategory('${catId}')`);
 
+    let unreadCount = 0;
+    if (cat.type === 'schedule') {
+      if (myEmpId) unreadCount = parseInt(localStorage.getItem(`unreadcount_${myEmpId}`) || '0', 10);
+    } else {
+      const lastSeen = parseInt(localStorage.getItem(`cat_lastseen_${catId}`) || '0', 10);
+      const itemsData = dynamicDataCache[catId] || {};
+      unreadCount = Object.keys(itemsData).filter(k => (itemsData[k].timestamp || 0) > lastSeen).length;
+    }
+
     let badgeHtml = '';
-    if(catId === 'notice') {
-      badgeHtml = `<span class="notice-badge hidden" id="noticeBadgeMenu">0</span>`;
+    if (unreadCount > 0) {
+      const displayCount = unreadCount > 99 ? '99+' : String(unreadCount);
+      badgeHtml = `<span class="notice-badge" id="menuBadge_${catId}">${displayCount}</span>`;
+    } else {
+      badgeHtml = `<span class="notice-badge hidden" id="menuBadge_${catId}">0</span>`;
     }
 
     card.innerHTML = `
@@ -1561,6 +1585,8 @@ function enterAdmin() {
 function enterUser() {
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('userScreen').classList.remove('hidden');
+  
+  checkScheduleChangesBackground();
   showMenu();
   updateNoticeBadge();
 }
@@ -1586,6 +1612,7 @@ function showMenu() {
   document.getElementById('browseView').classList.add('hidden');
   document.getElementById('userTitle').textContent = 'PUS여객';
   currentCategory = null;
+  renderUserMenu(); 
 }
 
 function initCalendarSelectors() {
@@ -1619,17 +1646,29 @@ function openCategory(category) {
   const catInfo = categoriesCache[category];
   document.getElementById('userTitle').textContent = catInfo ? `${catInfo.icon} ${catInfo.name}` : '자료실';
 
+  const myEmpId = (localStorage.getItem(LOGGED_IN_ID_KEY) || '').trim();
+
   if(catInfo && catInfo.type === 'schedule') {
     document.getElementById('userSearchBoxWrap').classList.add('hidden');
     document.getElementById('userFileList').classList.add('hidden');
     document.getElementById('userCalendarWrap').classList.remove('hidden'); 
     initCalendarSelectors();
+
+    // 메뉴 진입 시 미읽음 숫자를 변경 내역 버튼의 배지로 가치 이전해 줍니다.
+    if (myEmpId) {
+      const currentUnread = parseInt(localStorage.getItem(`unreadcount_${myEmpId}`) || '0', 10);
+      // '근무 스케줄' 메뉴 버튼 알림은 꺼주되, 변경 내역 버튼에는 해당 숫자를 그대로 노출 상태로 유지
+      localStorage.setItem(`last_computed_bell_${myEmpId}`, String(currentUnread));
+      localStorage.setItem(`unreadcount_${myEmpId}`, '0');
+    }
     renderScheduleCalendar();
   } else {
     document.getElementById('userSearchBoxWrap').classList.remove('hidden');
     document.getElementById('userFileList').classList.remove('hidden');
     document.getElementById('userCalendarWrap').classList.add('hidden');
     document.getElementById('searchInput').value = '';
+    
+    localStorage.setItem(`cat_lastseen_${category}`, String(Date.now()));
     renderUserFiles();
   }
 
@@ -1640,7 +1679,6 @@ function openCategory(category) {
    한국 공휴일 데이터 (연도별 고정 공휴일 + 대체공휴일 포함)
 ========================================================= */
 function getKoreanHolidays(year) {
-  // 고정 공휴일 (월, 일)
   const fixed = [
     [1,1],[3,1],[5,5],[6,6],[8,15],[10,3],[10,9],[12,25]
   ];
@@ -1648,7 +1686,6 @@ function getKoreanHolidays(year) {
   fixed.forEach(([m, d]) => {
     set.add(`${year}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
   });
-  // 설날·추석은 음력이라 연도별 하드코딩 (2024~2027)
   const lunar = {
     2024: ['2024-02-09','2024-02-10','2024-02-11','2024-02-12','2024-09-16','2024-09-17','2024-09-18'],
     2025: ['2025-01-28','2025-01-29','2025-01-30','2025-01-31','2025-10-05','2025-10-06','2025-10-07','2025-10-08'],
@@ -1659,10 +1696,8 @@ function getKoreanHolidays(year) {
   return set;
 }
 
-// 휴일 코드
 const OFF_CODES = new Set(['휴','전','청','교','연','예','반']);
 
-// shiftType → CSS 클래스 매핑
 function getSchCodeClass(code, shiftType) {
   if(OFF_CODES.has(code)) return 'sch-code off-code';
   const st = (shiftType || '').trim();
@@ -1672,10 +1707,8 @@ function getSchCodeClass(code, shiftType) {
   return 'sch-code';
 }
 
-// 근무코드 클릭 → 상세 팝업
 function showCodePopup(code, workTime, shiftType) {
   const cssClass = getSchCodeClass(code, shiftType);
-  // 배지 배경색을 팝업에도 반영
   const colorMap = {
     'off-code':  { bg:'#ff6b6b', color:'#fff' },
     'am-code':   { bg:'#ffd32a', color:'#5a3e00' },
@@ -1699,6 +1732,95 @@ function showCodePopup(code, workTime, shiftType) {
   `;
   overlay.addEventListener('click', e => { if(e.target === overlay) overlay.remove(); });
   document.body.appendChild(overlay);
+}
+
+/* =========================================================
+   백그라운드 상시 근무표 변경 내역 검증 엔진
+========================================================= */
+function checkScheduleChangesBackground() {
+  const myEmpId = (localStorage.getItem(LOGGED_IN_ID_KEY) || '').trim();
+  const myEmpName = (localStorage.getItem('loggedInUserName') || '').trim();
+  if (!myEmpId) return;
+
+  let mySchedule = null;
+  if(myEmpId && scheduleMasterCache[myEmpId]) mySchedule = scheduleMasterCache[myEmpId];
+  if(!mySchedule && myEmpName && scheduleMasterCache[myEmpName]) mySchedule = scheduleMasterCache[myEmpName];
+  if(!mySchedule) {
+    const lowerId   = myEmpId.toLowerCase().replace(/\s/g, '');
+    const lowerName = myEmpName.toLowerCase().replace(/\s/g, '');
+    const foundKey  = Object.keys(scheduleMasterCache).find(k => {
+      const lk = k.toLowerCase().replace(/\s/g, '');
+      return (lowerId && lk === lowerId) || (lowerName && lk === lowerName);
+    });
+    if(foundKey) mySchedule = scheduleMasterCache[foundKey];
+  }
+  if(!mySchedule) return; 
+
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const logsKey = `changelogs_${myEmpId}`;
+  const unreadKey = `unreadcount_${myEmpId}`;
+  const bellKey = `last_computed_bell_${myEmpId}`;
+  
+  let currentLogs = JSON.parse(localStorage.getItem(logsKey) || '[]');
+  
+  const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+  const nowTime = Date.now();
+  currentLogs = currentLogs.filter(log => (nowTime - log.timestamp) < THIRTY_DAYS_MS);
+  
+  let hasNewChanges = false;
+  let changeCounter = 0;
+
+  for (let year = currentYear - 1; year <= currentYear + 1; year++) {
+    for (let month = 1; month <= 12; month++) {
+      const snapshotKey = `snapshot_${myEmpId}_${year}_${month}`;
+      let savedSnapshot = JSON.parse(localStorage.getItem(snapshotKey) || '{}');
+      
+      if (Object.keys(savedSnapshot).length > 0) {
+        Object.entries(mySchedule).forEach(([dateStr, dayData]) => {
+          if (!dateStr.startsWith(`${year}-${month < 10 ? '0' + month : month}`)) return;
+          const targetDay = parseInt(dateStr.split('-')[2], 10);
+          const oldCode = savedSnapshot[targetDay] || '';
+          const newCode = (dayData && dayData.code) ? dayData.code : '';
+          
+          if (oldCode && newCode && oldCode !== newCode) {
+            const isDuplicate = currentLogs.some(l => l.year === year && l.month === month && l.day === targetDay && l.oldCode === oldCode && l.newCode === newCode);
+            if (!isDuplicate) {
+              currentLogs.unshift({
+                year, month, day: targetDay,
+                oldCode, newCode,
+                timestamp: nowTime
+              });
+              hasNewChanges = true;
+              changeCounter++;
+            }
+          }
+        });
+      }
+
+      const newSnapshot = {};
+      Object.entries(mySchedule).forEach(([dateStr, dayData]) => {
+        if (!dateStr.startsWith(`${year}-${month < 10 ? '0' + month : month}`)) return;
+        const targetDay = parseInt(dateStr.split('-')[2], 10);
+        if (dayData && dayData.code) newSnapshot[targetDay] = dayData.code;
+      });
+      localStorage.setItem(snapshotKey, JSON.stringify(newSnapshot));
+    }
+  }
+
+  localStorage.setItem(logsKey, JSON.stringify(currentLogs));
+
+  if (hasNewChanges) {
+    let unreadTotal = parseInt(localStorage.getItem(unreadKey) || '0', 10);
+    localStorage.setItem(unreadKey, unreadTotal + changeCounter);
+    
+    let bellTotal = parseInt(localStorage.getItem(bellKey) || '0', 10);
+    localStorage.setItem(bellKey, String(bellTotal + changeCounter));
+  }
+  
+  // 로그인 완료 직후 백그라운드 연동 스코프 드로잉 동기화
+  const currentMonth = now.getMonth() + 1;
+  renderHistoryModuleData(myEmpId, currentYear, currentMonth);
 }
 
 /* =========================================================
@@ -1726,63 +1848,7 @@ function renderScheduleCalendar() {
   }
   if(!mySchedule) mySchedule = {};
 
-  /* ─────────────────────────────────────────────────────────
-     신규 구현: 실시간 근무표 변경 내역 검증 및 30일 타임록 엔진
-  ───────────────────────────────────────────────────────── */
   if (myEmpId) {
-    const snapshotKey = `snapshot_${myEmpId}_${year}_${month}`;
-    const logsKey = `changelogs_${myEmpId}`;
-    const unreadKey = `unreadcount_${myEmpId}`;
-    
-    let savedSnapshot = JSON.parse(localStorage.getItem(snapshotKey) || '{}');
-    let currentLogs = JSON.parse(localStorage.getItem(logsKey) || '[]');
-    
-    // 30일(밀리초 기준) 기한 만료 필터링 파트
-    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
-    const nowTime = Date.now();
-    currentLogs = currentLogs.filter(log => (nowTime - log.timestamp) < THIRTY_DAYS_MS);
-    
-    let hasNewChanges = false;
-    let changeCounter = 0;
-
-    if (Object.keys(savedSnapshot).length > 0) {
-      Object.entries(mySchedule).forEach(([dateStr, dayData]) => {
-        if (!dateStr.startsWith(`${year}-${month < 10 ? '0' + month : month}`)) return;
-        const targetDay = parseInt(dateStr.split('-')[2], 10);
-        const oldCode = savedSnapshot[targetDay] || '';
-        const newCode = (dayData && dayData.code) ? dayData.code : '';
-        
-        if (oldCode && newCode && oldCode !== newCode) {
-          const isDuplicate = currentLogs.some(l => l.year === year && l.month === month && l.day === targetDay && l.oldCode === oldCode && l.newCode === newCode);
-          if (!isDuplicate) {
-            currentLogs.unshift({
-              year, month, day: targetDay,
-              oldCode, newCode,
-              timestamp: nowTime
-            });
-            hasNewChanges = true;
-            changeCounter++;
-          }
-        }
-      });
-    }
-
-    // 신규 스케줄 상태 스냅샷 업데이트
-    const newSnapshot = {};
-    Object.entries(mySchedule).forEach(([dateStr, dayData]) => {
-      if (!dateStr.startsWith(`${year}-${month < 10 ? '0' + month : month}`)) return;
-      const targetDay = parseInt(dateStr.split('-')[2], 10);
-      if (dayData && dayData.code) newSnapshot[targetDay] = dayData.code;
-    });
-    localStorage.setItem(snapshotKey, JSON.stringify(newSnapshot));
-    localStorage.setItem(logsKey, JSON.stringify(currentLogs));
-
-    if (hasNewChanges) {
-      let unreadTotal = parseInt(localStorage.getItem(unreadKey) || '0', 10);
-      localStorage.setItem(unreadKey, unreadTotal + changeCounter);
-    }
-    
-    // 변경내역 엘리먼트 렌더링 업데이트 동기화
     renderHistoryModuleData(myEmpId, year, month);
   }
 
@@ -1791,12 +1857,9 @@ function renderScheduleCalendar() {
   const lastDate = new Date(year, month, 0).getDate();
   const MM = month < 10 ? '0' + month : String(month);
 
-  // 오늘 날짜
   const todayObj = new Date();
   const todayKey = `${todayObj.getFullYear()}-${String(todayObj.getMonth()+1).padStart(2,'0')}-${String(todayObj.getDate()).padStart(2,'0')}`;
 
-  // ── 이번 달 전체 코드 집계 (shiftType별 그룹핑) ──
-  // { code: { cnt, shiftType, workTime } }
   const codeInfo = {};
   for(let d = 1; d <= lastDate; d++) {
     const DD = d < 10 ? '0' + d : String(d);
@@ -1808,7 +1871,6 @@ function renderScheduleCalendar() {
     }
   }
 
-  // ── 그룹별로 분류 ──
   const groups = { '오전': [], '오후': [], '롱·출퇴출': [], '휴무': [], '기타': [] };
   Object.entries(codeInfo).forEach(([code, info]) => {
     if(OFF_CODES.has(code)) groups['휴무'].push({code, ...info});
@@ -1818,7 +1880,6 @@ function renderScheduleCalendar() {
     else groups['기타'].push({code, ...info});
   });
 
-  // ── 통계 카드 HTML ──
   const groupMeta = {
     '오전':     { icon:'🌅', bg:'linear-gradient(135deg,#fff9c4,#fff176)', border:'#ffe082', color:'#5a3e00' },
     '오후':     { icon:'🌆', bg:'linear-gradient(135deg,#bbdefb,#90caf9)', border:'#64b5f6', color:'#0d47a1' },
@@ -1834,7 +1895,6 @@ function renderScheduleCalendar() {
     hasAny = true;
     const meta = groupMeta[groupName];
     const totalCnt = items.reduce((s,i) => s+i.cnt, 0);
-    // 코드 목록 칩
     const codeChips = items.sort((a,b) => b.cnt-a.cnt).map(i =>
       `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:2px 8px;background:rgba(255,255,255,0.55);border-radius:12px;border:1px solid rgba(0,0,0,0.08);">
         ${escapeHtml(i.code)}<b style="opacity:0.75">${i.cnt}</b>
@@ -1852,7 +1912,6 @@ function renderScheduleCalendar() {
   if(!hasAny) summaryHtml += '<div style="text-align:center;color:#bbb;font-size:12px;padding:6px 0;">이번 달 스케줄 없음</div>';
   summaryHtml += '</div>';
 
-  // ── 달력 테이블 ──
   let html = `<table class="calendar-table">
                 <thead><tr>
                   <th>일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th>토</th>
@@ -1887,15 +1946,12 @@ function renderScheduleCalendar() {
       const codeClass = getSchCodeClass(code, shiftType);
 
       if(isOff) {
-        // 휴무 코드 → 클릭 불가, cursor 기본
         schHtml += `<div class="${codeClass}" style="cursor:default;">${escapeHtml(code)}</div>`;
       } else {
-        // 근무 코드 → 클릭 시 팝업 (시간 텍스트는 숨김, 팝업에서만 표시)
         const safeCode = code.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         const safeTime = displayTime.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         const safeType = shiftType.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         schHtml += `<div class="${codeClass}" onclick="showCodePopup('${safeCode}','${safeTime}','${safeType}')">${escapeHtml(code)}</div>`;
-        // 시간 텍스트 → 숨김 (클릭 팝업으로만 확인)
       }
     }
 
@@ -1911,12 +1967,11 @@ function renderScheduleCalendar() {
   while(dayCount % 7 !== 0) { html += `<td class="day-empty"></td>`; dayCount++; }
   html += `</tr></tbody></table>`;
 
-  // ── 달력만, 아래에 통계카드 ──
   container.innerHTML = html + summaryHtml;
 }
 
 /* =========================================================
-   신규 추가: 변경 내역 전용 토글, 삭제 및 렌더링 제어 핸들러
+   변경 내역 전용 토글, 삭제 및 렌더링 제어 핸들러
 ========================================================= */
 function toggleHistoryPopup(event) {
   event.stopPropagation();
@@ -1925,9 +1980,9 @@ function toggleHistoryPopup(event) {
   
   if (popup.classList.contains('hidden')) {
     popup.classList.remove('hidden');
-    // 팝업이 활성화되었으므로 안 읽은 숫자 배지를 꺼줍니다.
+    // 📌 변경 내역 버튼 클릭 시 전용 알림 개수를 초기화(배지 삭제)해 줍니다.
     if (myEmpId) {
-      localStorage.setItem(`unreadcount_${myEmpId}`, '0');
+      localStorage.setItem(`last_computed_bell_${myEmpId}`, '0');
       const badge = document.getElementById('historyCountBadge');
       if (badge) { badge.textContent = '0'; badge.classList.add('hidden'); }
     }
@@ -1943,6 +1998,7 @@ function clearUserHistoryLogs() {
   
   localStorage.removeItem(`changelogs_${myEmpId}`);
   localStorage.setItem(`unreadcount_${myEmpId}`, '0');
+  localStorage.setItem(`last_computed_bell_${myEmpId}`, '0');
   
   const year = parseInt(document.getElementById('calendarYearSelect').value, 10);
   const month = parseInt(document.getElementById('calendarMonthSelect').value, 10);
@@ -1957,19 +2013,18 @@ function renderHistoryModuleData(myEmpId, currentYear, currentMonth) {
   if (!listEl) return;
   
   const logs = JSON.parse(localStorage.getItem(`changelogs_${myEmpId}`) || '[]');
-  const unreadCount = parseInt(localStorage.getItem(`unreadcount_${myEmpId}`) || '0', 10);
+  const bellCount = parseInt(localStorage.getItem(`last_computed_bell_${myEmpId}`) || '0', 10);
   
-  // 배지 수량 상태 동기화 처리
+  // 📌 [신규 추가]: 변경 내역 버튼 자체의 전용 알림 숫자(배지) 실시간 가시화 연동
   if (badgeEl) {
-    if (unreadCount > 0) {
-      badgeEl.textContent = unreadCount;
+    if (bellCount > 0) {
+      badgeEl.textContent = bellCount;
       badgeEl.classList.remove('hidden');
     } else {
       badgeEl.classList.add('hidden');
     }
   }
 
-  // 선택된 대상 월의 데이터만 매핑하여 팝업 리스트에 출력
   const targetLogs = logs.filter(l => l.year === currentYear && l.month === currentMonth);
   if (targetLogs.length === 0) {
     listEl.innerHTML = '<li style="text-align:center; color:#bbb; padding:10px 0;">이번 달 변경점이 없습니다.</li>';
@@ -1981,7 +2036,6 @@ function renderHistoryModuleData(myEmpId, currentYear, currentMonth) {
   }).join('');
 }
 
-// 팝업 바깥쪽을 클릭하면 변경내역 팝업창이 닫히도록 바인딩
 document.addEventListener('click', function() {
   const popup = document.getElementById('historyPopupWrap');
   if (popup) popup.classList.add('hidden');
@@ -2068,7 +2122,6 @@ function openPreview(file) {
   document.getElementById('previewModal').classList.remove('hidden');
 }
 
-// ... 이하 기존 동일 전역 유틸 함수
 function closePreview() {
   document.getElementById('previewModal').classList.add('hidden');
   document.getElementById('previewFrame').src = '';

@@ -395,7 +395,6 @@
   .history-popup-box li { font-size: 12px; color: #555; padding: 4px 0; border-bottom: 1px dashed #f5f5f5; font-weight: 500; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 </head>
 <body>
 
@@ -652,6 +651,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 <script>
 /* =========================================================
    Firebase 세션 정의
@@ -1720,6 +1720,7 @@ function enterUser() {
   checkScheduleChangesBackground();
   showMenu();
   updateNoticeBadge();
+  initFCMAfterLogin();
 }
 
 function logout() {
@@ -2354,10 +2355,8 @@ async function registerFCMToken() {
   }
 }
 
-// enterUser 호출 시 FCM 자동 초기화
-const _origEnterUser = enterUser;
-function enterUser() {
-  _origEnterUser();
+// enterUser 호출 시 FCM 자동 초기화 - 함수 재정의 방식 제거, 직접 호출로 변경
+function initFCMAfterLogin() {
   setTimeout(initFCM, 1000);
 }
 

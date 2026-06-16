@@ -283,7 +283,9 @@
   .no-result { text-align:center; color:#aaa; padding:30px; font-size:13px; }
 
   /* ===== HIGHLY SPECIFIC CALENDAR STYLING ===== */
-  .calendar-selectors { display: flex; gap: 8px; justify-content: center; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+  .calendar-selectors { display: flex; flex-direction: column; gap: 10px; justify-content: center; margin-bottom: 16px; align-items: center; }
+  .calendar-select-row { display: flex; gap: 8px; justify-content: center; align-items: center; }
+  .calendar-button-row { display: flex; gap: 8px; justify-content: center; align-items: center; width: 100%; }
   .calendar-selectors select { padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e5f3; background: #fff; font-size: 14px; font-weight: 600; color: #2b2f3e; }
   .calendar-table { width: 100%; border-collapse: collapse; background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border-radius: 12px; overflow: hidden; box-shadow: 0 6px 20px rgba(109,131,255,0.06); table-layout: fixed; }
   .calendar-table th, .calendar-table td { border: 1px solid #eef0fa; text-align: center; vertical-align: top; padding: 8px 2px; }
@@ -386,7 +388,7 @@
   .history-bell-btn { background: linear-gradient(135deg,#ff9f43,#ff793f); color: #fff; border: none; padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px; position: relative; }
   .history-bell-btn .bell-badge { background: #e74c3c; color: #fff; font-size: 10px; padding: 1px 5px; border-radius: 10px; font-weight: 800; }
   .history-clear-btn { background: #fff; color: #777; border: 1px solid #ddd; padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
-  .history-popup-box { position: absolute; background: #fff; border: 2px solid #ff9f43; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); width: 280px; z-index: 99999; padding: 14px; text-align: left; margin-top: 8px; max-height: 300px; overflow-y: auto; }
+  .history-popup-box { position: absolute; background: #fff; border: 2px solid #ff9f43; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); width: 280px; z-index: 99999; padding: 14px; text-align: left; margin-top: 8px; max-height: 300px; overflow-y: auto; right: 0; }
   .history-popup-box h5 { font-size: 14px; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 6px; color: #333; }
   .history-popup-box ul { list-style: none; }
   .history-popup-box li { font-size: 12px; color: #555; padding: 4px 0; border-bottom: 1px dashed #f5f5f5; font-weight: 500; }
@@ -418,7 +420,7 @@
     <div class="brand-mark">PUS</div>
     <h1>TrinityAirService</h1>
     <p class="sub">Document & Notification</p>
-    <input type="text" id="loginId" placeholder="아이디(사번 또는 이름)">
+    <input type="text" id="loginId" placeholder="사번">
     <input type="password" id="loginPw" placeholder="비밀번호">
     <button onclick="doLogin()">로그인</button>
     <div class="login-error" id="loginError"></div>
@@ -509,14 +511,19 @@
 
     <div id="userCalendarWrap" class="hidden" style="position: relative;">
       <div class="calendar-selectors">
-        <select id="calendarYearSelect" onchange="renderScheduleCalendar()"></select>
-        <select id="calendarMonthSelect" onchange="renderScheduleCalendar()"></select>
+        <!-- 첫 번째 줄: 년/월 선택 -->
+        <div class="calendar-select-row">
+          <select id="calendarYearSelect" onchange="renderScheduleCalendar()"></select>
+          <select id="calendarMonthSelect" onchange="renderScheduleCalendar()"></select>
+        </div>
         
-        <!-- 직원 모드 변경 내역 인터페이스 영역 -->
-        <button class="history-bell-btn" onclick="toggleHistoryPopup(event)">
-          변경 내역 <span class="bell-badge hidden" id="historyCountBadge">0</span>
-        </button>
-        <button class="history-clear-btn" onclick="clearUserHistoryLogs()">내역 삭제</button>
+        <!-- 두 번째 줄: 변경내역/내역삭제 버튼 -->
+        <div class="calendar-button-row">
+          <button class="history-bell-btn" onclick="toggleHistoryPopup(event)">
+            변경 내역 <span class="bell-badge hidden" id="historyCountBadge">0</span>
+          </button>
+          <button class="history-clear-btn" onclick="clearUserHistoryLogs()">내역 삭제</button>
+        </div>
         
         <div id="historyPopupWrap" class="history-popup-box hidden" onclick="event.stopPropagation()">
           <h5>📅 스케줄 변경 알림 내역</h5>
@@ -566,7 +573,7 @@
     <input type="text" id="noticeTitleInput" placeholder="제목을 입력하세요">
     <label for="noticeContentInput">내용</label>
     <textarea id="noticeContentInput" placeholder="내용을 입력하세요"
-      style="width:100%; min-height:160px; padding:10px; border:1px solid #ddd; border-radius:8px; font-size:14px; margin-bottom:14px; resize:vertical; font-family:inherit;"></textarea>
+      style="width:100%; min-height:160px; padding:10px; border:1px solid #ddd; border-radius:8px; font-size:14px; margin-bottom:14px; resize:vertical; font-family:inherit("></textarea>
     
     <label>📸 이미지 첨부 (선택)</label>
     <div style="margin-bottom: 14px;">
@@ -1177,31 +1184,6 @@ async function clearSystemSchedules() {
 
 <script>
 /* =========================================================
-   글 작성용 이미지 첨부 미리보기 및 업로드 변수
-========================================================= */
-let attachedImageFile = null;
-
-function previewBoardImage(event) {
-  const file = event.target.files[0];
-  if(!file) return;
-  if(!file.type.startsWith('image/')) {
-    alert('이미지 파일만 선택할 수 있습니다.');
-    event.target.value = '';
-    return;
-  }
-  attachedImageFile = file;
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const img = document.getElementById('boardImgPrev');
-    img.src = e.target.result;
-    img.classList.remove('hidden');
-  }
-  reader.readAsDataURL(file);
-}
-</script>
-
-<script>
-/* =========================================================
    관리자 UI 렌더링 엔진 (최소화/최대화 기능 제어)
 ========================================================= */
 function toggleMinimizeSection(catId) {
@@ -1256,7 +1238,7 @@ function renderAdminAll() {
       schDiv.style.textAlign = 'left';
       schDiv.style.color = '#4e65df';
       schDiv.innerHTML = `📅 <strong>근무 스케줄 관리 안내:</strong><br>본 항목은 상단에 위치한 '스마트 엑셀 스케줄 관리 엔진' 업로더와 자동 맵핑되는 고유 시스템입니다. 수정 및 파일 변경은 상단 업로더를 이용하세요.`;
-      schDiv.appendChild(schDiv);
+      section.appendChild(schDiv);
       container.appendChild(section);
       return;
     }
@@ -1502,7 +1484,7 @@ async function doLogin() {
   const btn = document.querySelector('.login-box button');
 
   err.textContent = '';
-  if (!id || !pw) { err.textContent = '아이디와 비밀번호를 모두 입력해 주세요.'; return; }
+  if (!id || !pw) { err.textContent = '사번과 비밀번호를 모두 입력해 주세요.'; return; }
 
   // ── 관리자 ──
   if (id === ADMIN_ID && pw === ADMIN_PW) {
@@ -1542,7 +1524,7 @@ async function doLogin() {
     }
 
     if (!account) {
-      err.textContent = '존재하지 않는 아이디(사번)이거나 계정이 없습니다.';
+      err.textContent = '존재하지 않는 사번이거나 계정이 없습니다.';
       return;
     }
 
@@ -1654,10 +1636,8 @@ function openCategory(category) {
     document.getElementById('userCalendarWrap').classList.remove('hidden'); 
     initCalendarSelectors();
 
-    // 메뉴 진입 시 미읽음 숫자를 변경 내역 버튼의 배지로 가치 이전해 줍니다.
     if (myEmpId) {
       const currentUnread = parseInt(localStorage.getItem(`unreadcount_${myEmpId}`) || '0', 10);
-      // '근무 스케줄' 메뉴 버튼 알림은 꺼주되, 변경 내역 버튼에는 해당 숫자를 그대로 노출 상태로 유지
       localStorage.setItem(`last_computed_bell_${myEmpId}`, String(currentUnread));
       localStorage.setItem(`unreadcount_${myEmpId}`, '0');
     }
@@ -1818,7 +1798,6 @@ function checkScheduleChangesBackground() {
     localStorage.setItem(bellKey, String(bellTotal + changeCounter));
   }
   
-  // 로그인 완료 직후 백그라운드 연동 스코프 드로잉 동기화
   const currentMonth = now.getMonth() + 1;
   renderHistoryModuleData(myEmpId, currentYear, currentMonth);
 }
@@ -1980,7 +1959,6 @@ function toggleHistoryPopup(event) {
   
   if (popup.classList.contains('hidden')) {
     popup.classList.remove('hidden');
-    // 📌 변경 내역 버튼 클릭 시 전용 알림 개수를 초기화(배지 삭제)해 줍니다.
     if (myEmpId) {
       localStorage.setItem(`last_computed_bell_${myEmpId}`, '0');
       const badge = document.getElementById('historyCountBadge');
@@ -2015,7 +1993,6 @@ function renderHistoryModuleData(myEmpId, currentYear, currentMonth) {
   const logs = JSON.parse(localStorage.getItem(`changelogs_${myEmpId}`) || '[]');
   const bellCount = parseInt(localStorage.getItem(`last_computed_bell_${myEmpId}`) || '0', 10);
   
-  // 📌 [신규 추가]: 변경 내역 버튼 자체의 전용 알림 숫자(배지) 실시간 가시화 연동
   if (badgeEl) {
     if (bellCount > 0) {
       badgeEl.textContent = bellCount;
@@ -2095,6 +2072,9 @@ function renderUserFiles() {
   }
 }
 
+/* =========================================================
+   상세 글/항목 제어 유틸 스크립트 모듈
+========================================================= */
 function viewBoardItem(catId, id) {
   const item = dynamicDataCache[catId][id];
   if (!item) return;

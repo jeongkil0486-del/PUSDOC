@@ -395,6 +395,7 @@
   .history-popup-box li { font-size: 12px; color: #555; padding: 4px 0; border-bottom: 1px dashed #f5f5f5; font-weight: 500; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 </head>
 <body>
 
@@ -434,6 +435,7 @@
     <div class="header-actions">
       <button class="id-manage-btn" onclick="toggleIdListPopup()">👤 등록 ID 명단 보기</button>
       <button class="add-category-btn" onclick="openAddCategoryModal()">➕ 새 항목 추가</button>
+      <button style="background:linear-gradient(135deg,#ff6b6b,#ee5a24); color:#fff; border:none; padding:8px 16px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600;" onclick="openPushModal()">🔔 푸시 알림 전송</button>
       <button class="logout-btn" onclick="logout()">로그아웃</button>
     </div>
   </div>
@@ -628,6 +630,22 @@
     <div class="modal-actions">
       <button class="modal-cancel" onclick="closeLinkEditor()">취소</button>
       <button class="modal-confirm" onclick="saveLinkItem()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 푸시 알림 전송 모달 ===== -->
+<div id="pushModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h3>🔔 푸시 알림 전송</h3>
+    <label for="pushTitleInput">알림 제목</label>
+    <input type="text" id="pushTitleInput" placeholder="예: 공지사항 업데이트">
+    <label for="pushBodyInput">알림 내용</label>
+    <input type="text" id="pushBodyInput" placeholder="예: 새 공지가 등록되었습니다.">
+    <div id="pushSendStatus" style="font-size:12px; color:#6d83ff; min-height:18px; margin-bottom:6px;"></div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closePushModal()">취소</button>
+      <button class="modal-confirm" id="pushSendBtn" onclick="sendPushNotification()">전송</button>
     </div>
   </div>
 </div>
@@ -2286,6 +2304,116 @@ function escapeHtml(str) {
 }
 document.getElementById('loginPw').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 document.getElementById('previewFrame').addEventListener('contextmenu', e => e.preventDefault());
-</script>
+
+/* =========================================================
+   FCM 푸시 알림 시스템 (V1 API - Cloudflare Worker 경유)
+========================================================= */
+const FCM_VAPID_KEY = 'BLbxRitLNS6G-B8jLtDsxm9DaVBkFalVgV7HbXbVdScIUqbsz9NgdgUqjLQQ073fMhfFONv4SJgoCzDKqhEV8Ig';
+const FCM_WORKER_URL = 'https://pusdoc.jeongkil0486.workers.dev/fcm-send';
+
+const fcmTokensRef = firebase.database().ref('fcmTokens');
+let fcmMessaging = null;
+
+async function initFCM() {
+  try {
+    if (!('serviceWorker' in navigator) || !('Notification' in window)) return;
+
+    const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    fcmMessaging = firebase.messaging();
+    fcmMessaging.useServiceWorker(reg);
+
+    // 포그라운드 수신 (앱 열려있을 때)
+    fcmMessaging.onMessage(payload => {
+      const title = payload.notification?.title || 'PUS DOC';
+      const body  = payload.notification?.body  || '새 알림이 있습니다.';
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200]);
+      if (Notification.permission === 'granted') {
+        new Notification(title, { body, icon: '/icon.png', tag: 'pusdoc-push' });
+      }
+    });
+
+    await registerFCMToken();
+  } catch(e) {
+    console.warn('FCM 초기화 실패:', e);
+  }
+}
+
+async function registerFCMToken() {
+  try {
+    if (!fcmMessaging) return;
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return;
+
+    const token = await fcmMessaging.getToken({ vapidKey: FCM_VAPID_KEY });
+    if (!token) return;
+
+    const empId = (localStorage.getItem(LOGGED_IN_ID_KEY) || 'unknown').replace(/[.#$/[\]]/g, '_');
+    await fcmTokensRef.child(empId).set({ token, empId, updatedAt: Date.now() });
+  } catch(e) {
+    console.warn('FCM 토큰 등록 실패:', e);
+  }
+}
+
+// enterUser 호출 시 FCM 자동 초기화
+const _origEnterUser = enterUser;
+function enterUser() {
+  _origEnterUser();
+  setTimeout(initFCM, 1000);
+}
+
+/* 관리자 푸시 전송 모달 */
+function openPushModal() {
+  document.getElementById('pushTitleInput').value = '';
+  document.getElementById('pushBodyInput').value = '';
+  document.getElementById('pushSendStatus').textContent = '';
+  document.getElementById('pushModal').classList.remove('hidden');
+}
+function closePushModal() {
+  document.getElementById('pushModal').classList.add('hidden');
+}
+
+async function sendPushNotification() {
+  const title = document.getElementById('pushTitleInput').value.trim();
+  const body  = document.getElementById('pushBodyInput').value.trim();
+  if (!title || !body) { alert('제목과 내용을 입력해 주세요.'); return; }
+
+  const btn    = document.getElementById('pushSendBtn');
+  const status = document.getElementById('pushSendStatus');
+  btn.disabled = true;
+  status.textContent = '⏳ 수신자 목록 불러오는 중...';
+
+  try {
+    const snap   = await fcmTokensRef.once('value');
+    const tokens = Object.values(snap.val() || {}).map(t => t.token).filter(Boolean);
+
+    if (tokens.length === 0) {
+      status.textContent = '❌ 등록된 수신자가 없습니다. 직원들이 먼저 앱에 로그인해야 합니다.';
+      btn.disabled = false;
+      return;
+    }
+
+    status.textContent = `⏳ ${tokens.length}명에게 전송 중...`;
+
+    // Cloudflare Worker로 전송 요청
+    const res = await fetch(FCM_WORKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': UPLOAD_SECRET },
+      body: JSON.stringify({ title, body, tokens })
+    });
+
+    const result = await res.json();
+    if (res.ok) {
+      status.textContent = `✅ ${result.successCount}/${tokens.length}명 전송 완료!`;
+      setTimeout(closePushModal, 2000);
+    } else {
+      status.textContent = `❌ 전송 실패: ${result.error || '알 수 없는 오류'}`;
+    }
+  } catch(e) {
+    console.error(e);
+    status.textContent = '❌ 전송 오류 발생';
+  } finally {
+    btn.disabled = false;
+  }
+}</script>
 </body>
 </html>

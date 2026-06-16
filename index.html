@@ -2321,7 +2321,6 @@ async function initFCM() {
 
     const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
     fcmMessaging = firebase.messaging();
-    fcmMessaging.useServiceWorker(reg);
 
     // 포그라운드 수신 (앱 열려있을 때)
     fcmMessaging.onMessage(payload => {

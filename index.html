@@ -445,14 +445,12 @@
       <button class="delete-category-btn" style="color: #e25b5b;" onclick="clearSystemSchedules()">❌ 전체 스케줄 삭제</button>
     </div>
 
-    <!-- STEP 1: 년/월 선택 -->
     <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
       <span style="font-size:13px; font-weight:700; color:#6d83ff;">📆 대상 년월 선택</span>
-      <select id="adminSchYear" style="padding:7px 12px; border-radius:8px; border:1px solid #c5caee; font-size:14px; font-weight:600; color:#2b2f3e; background:#fff;"></select>
-      <select id="adminSchMonth" style="padding:7px 12px; border-radius:8px; border:1px solid #c5caee; font-size:14px; font-weight:600; color:#2b2f3e; background:#fff;"></select>
+      <select id="adminSchYear" style="padding:7px 12px; border-radius:8px; border:1px solid #c5caee; font-size:14px; font-weight:600; color:#2b2f3e; background:#fff();"></select>
+      <select id="adminSchMonth" style="padding:7px 12px; border-radius:8px; border:1px solid #c5caee; font-size:14px; font-weight:600; color:#2b2f3e; background:#fff();"></select>
     </div>
 
-    <!-- STEP 2: 양식 다운로드 -->
     <div style="background:#f0f7ff; border:1px dashed #7b8cff; border-radius:10px; padding:14px; margin-bottom:12px;">
       <div style="font-size:13px; font-weight:700; color:#4e65df; margin-bottom:8px;">① 근무표 양식 다운로드</div>
       <div style="font-size:11px; color:#888; margin-bottom:10px; line-height:1.6;">
@@ -464,7 +462,6 @@
       </button>
     </div>
 
-    <!-- STEP 3: 파일 업로드 -->
     <div style="background:#f8f0ff; border:1px dashed #a78bfa; border-radius:10px; padding:14px;">
       <div style="font-size:13px; font-weight:700; color:#8b6df8; margin-bottom:8px;">② 작성 완료된 근무표 업로드</div>
       <div style="font-size:11px; color:#888; margin-bottom:10px; line-height:1.6;">
@@ -480,7 +477,6 @@
       </div>
     </div>
 
-    <!-- STEP 4: 특정 월 스케줄 삭제 -->
     <div style="background:#fff5f5; border:1px dashed #ff7675; border-radius:10px; padding:14px; margin-top:12px;">
       <div style="font-size:13px; font-weight:700; color:#e25b5b; margin-bottom:8px;">③ 특정 월 스케줄 삭제</div>
       <div style="font-size:11px; color:#888; margin-bottom:10px; line-height:1.6;">
@@ -494,7 +490,6 @@
 
     <div id="adminScheduleInfoPanel" style="font-size:12px; color:#6d83ff; font-weight:600; margin-top:12px;">조회중...</div>
 
-    <!-- 업로드 이력 패널 -->
     <div style="margin-top:14px;">
       <div style="font-size:13px; font-weight:700; color:#4e65df; margin-bottom:8px;">📋 업로드 이력 (새로고침 후에도 유지)</div>
       <div id="adminUploadHistoryPanel" style="background:#f8f9fd; border:1px solid #eef0fa; border-radius:10px; padding:10px; min-height:40px; font-size:12px; color:#555; line-height:1.8;">
@@ -525,13 +520,11 @@
 
     <div id="userCalendarWrap" class="hidden" style="position: relative;">
       <div class="calendar-selectors">
-        <!-- 첫 번째 줄: 년/월 선택 -->
         <div class="calendar-select-row">
           <select id="calendarYearSelect" onchange="renderScheduleCalendar()"></select>
           <select id="calendarMonthSelect" onchange="renderScheduleCalendar()"></select>
         </div>
         
-        <!-- 두 번째 줄: 변경내역/내역삭제 버튼 -->
         <div class="calendar-button-row">
           <button class="history-bell-btn" onclick="toggleHistoryPopup(event)">
             변경 내역 <span class="bell-badge hidden" id="historyCountBadge">0</span>
@@ -545,6 +538,15 @@
         </div>
       </div>
       <div id="calendarGridContainer"></div>
+    </div>
+
+    <div id="userGrievanceWrap" class="hidden">
+      <div style="background:#fff; border:1px solid #e2e5f3; border-radius:14px; padding:18px; margin-bottom:16px; box-shadow:0 6px 16px rgba(109,131,255,0.06);">
+        <p style="font-size:13px; color:#e25b5b; font-weight:800; margin-bottom:6px; letter-spacing:0.5px;">⚠️ 절대 비밀 보장, CM만 확인</p>
+        <p style="font-size:11px; color:#666; line-height:1.6; margin-bottom:14px;">요청 및 고충 접수</p>
+        <button class="upload-btn" style="width:100%; text-align:center;" onclick="openGrievanceEditor()">✍️ 새로운 고충 접수 신청서 작성</button>
+      </div>
+      <div id="userGrievanceList"></div>
     </div>
 
     <div id="userFileList"></div>
@@ -567,12 +569,16 @@
     <label for="categoryNameInput">항목 이름</label>
     <input type="text" id="categoryNameInput" placeholder="예: 공지사항, 교육자료">
     <label for="categoryTypeSelect">항목 종류</label>
-    <select id="categoryTypeSelect">
+    <select id="categoryTypeSelect" onchange="handleCategoryTypeSelectChange(this.value)">
       <option value="board">📝 글 작성 게시판 형태 (공지사항 등)</option>
       <option value="file">📁 PDF 파일 업로드 형태 (교육자료 등)</option>
       <option value="schedule">📅 개인 스케줄 달력 연동 형태</option>
       <option value="link">🔗 링크 바로가기 목록 형태</option>
+      <option value="grievance">🔒 고충 접수처 (비밀 보장)</option>
     </select>
+    <div id="grievanceNoticeArea" style="font-size:11px; color:#e25b5b; font-weight:700; line-height:1.4; padding:8px; background:#fff1f1; border-radius:6px; border:1px solid #ffd3d3; margin-bottom:14px;" class="hidden">
+      ※ '고충 접수처' 선택 시 설명은 "요청 및 고충 접수"로 시스템 고정 설정되며, 직원이 비밀리에 글을 투고하는 익명 접수함으로 작동합니다.
+    </div>
     <div class="modal-actions">
       <button class="modal-cancel" onclick="closeCategoryModal()">취소</button>
       <button class="modal-confirm" onclick="saveCategory()">저장</button>
@@ -588,7 +594,7 @@
     <input type="text" id="noticeTitleInput" placeholder="제목을 입력하세요">
     <label for="noticeContentInput">내용</label>
     <textarea id="noticeContentInput" placeholder="내용을 입력하세요"
-      style="width:100%; min-height:160px; padding:10px; border:1px solid #ddd; border-radius:8px; font-size:14px; margin-bottom:14px; resize:vertical; font-family:inherit("></textarea>
+      style="width:100%; min-height:160px; padding:10px; border:1px solid #ddd; border-radius:8px; font-size:14px; margin-bottom:14px; resize:vertical; font-family:inherit;"></textarea>
     
     <label>📸 이미지 첨부 (선택)</label>
     <div style="margin-bottom: 14px;">
@@ -601,6 +607,25 @@
     <div class="modal-actions">
       <button class="modal-cancel" onclick="closeNoticeEditor()">취소</button>
       <button class="modal-confirm" onclick="saveBoardItem()">저장</button>
+    </div>
+  </div>
+</div>
+
+<div id="grievanceEditorModal" class="modal-overlay hidden">
+  <div class="modal-box" style="width:440px; max-width:90vw;">
+    <h3 id="grievanceEditorTitle">🔒 고충 접수 작성</h3>
+    <label for="grivTitleInput">고충 요약 제목</label>
+    <input type="text" id="grivTitleInput" placeholder="제목을 입력해 주세요">
+    <label for="grivContentInput">상세 고충 내용</label>
+    <textarea id="grivContentInput" placeholder="비밀을 보장합니다. 고충 내용을 구체적으로 기입해 주세요."
+      style="width:100%; min-height:160px; padding:10px; border:1px solid #ddd; border-radius:8px; font-size:14px; margin-bottom:14px; resize:vertical; font-family:inherit;"></textarea>
+    
+    <label for="grivPwInput" style="color:#e25b5b;">🔑 수정/확인용 전용 비밀번호</label>
+    <input type="password" id="grivPwInput" placeholder="글을 열람 및 수정할 때 쓸 암호를 설정하세요">
+
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeGrievanceEditor()">취소</button>
+      <button class="modal-confirm" onclick="saveGrievanceItem()">접수 저장</button>
     </div>
   </div>
 </div>
@@ -619,12 +644,26 @@
   </div>
 </div>
 
+<div id="grievanceViewModal" class="modal-overlay hidden">
+  <div class="modal-box" style="width:440px; max-width:92vw;">
+    <h3 style="color:#6d83ff; margin-bottom:6px;">🔒 고충 접수 상세 보기</h3>
+    <div style="font-size:11px; color:#888; margin-bottom:12px; border-bottom:1px solid #eef0fa; padding-bottom:6px;">
+      기록시간: <span id="grivViewMeta" style="color:#333; font-weight:700;"></span>
+    </div>
+    <h4 id="grivViewTitle" style="font-size:15px; margin-bottom:10px; color:#2b2f3e;"></h4>
+    <div id="grivViewContent" style="font-size:14px; color:#444; line-height:1.6; background:#f8f9fd; padding:12px; border-radius:8px; white-space:pre-wrap; border:1px solid #eef0fa; max-height:240px; overflow-y:auto; margin-bottom:16px;"></div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeGrievanceView()" style="flex:1;">닫기</button>
+    </div>
+  </div>
+</div>
+
 <div id="linkEditorModal" class="modal-overlay hidden">
   <div class="modal-box">
     <h3 id="linkEditorTitle">🔗 새 링크 추가</h3>
     <label for="linkTitleInput">링크 제목</label>
     <input type="text" id="linkTitleInput" placeholder="예: 회사 홈페이지">
-    <label for="linkUrlInput">링크 URL</label>
+    <label for="linkUrlInput">リンク URL</label>
     <input type="url" id="linkUrlInput" placeholder="https://example.com">
     <div class="modal-actions">
       <button class="modal-cancel" onclick="closeLinkEditor()">취소</button>
@@ -633,7 +672,6 @@
   </div>
 </div>
 
-<!-- ===== 푸시 알림 전송 모달 ===== -->
 <div id="pushModal" class="modal-overlay hidden">
   <div class="modal-box">
     <h3>🔔 푸시 알림 전송</h3>
@@ -680,7 +718,7 @@ const R2_PUBLIC_BASE = 'https://pub-0ac04327385c410ca267e994bea14de1.r2.dev';
 const SESSION_KEY = 'eduSiteSession';
 const LOGGED_IN_ID_KEY = 'loggedInUserId'; 
 const ADMIN_ID = 'PUSEDU';
-const ADMIN_PW = 'PUSEDU';
+const ADMIN_PW = 'PUSEDU'; // 관리자 아이디 및 비번 PUSEDU로 동일 세팅 완료
 const USER_ID  = 'PUSDOC';
 
 let categoriesCache = {};
@@ -726,8 +764,11 @@ dataRef.on('value', snapshot => {
   dynamicDataCache = snapshot.val() || {};
   isDataLoaded = true;
   renderAdminAll();
-  if (currentCategory && categoriesCache[currentCategory]?.type !== 'schedule') renderUserFiles();
-  updateNoticeBadge();
+  if (currentCategory && categoriesCache[currentCategory]?.type !== 'schedule') {
+    if (categoriesCache[currentCategory]?.type === 'grievance') renderUserGrievance();
+    else renderUserFiles();
+  }
+  updateNoticeBadge(); // 내부에서 통합 상단 알림 처리
   checkInitialSessionRestore();
 });
 
@@ -794,7 +835,6 @@ function checkInitialSessionRestore() {
   } else if (session === 'user') {
     enterUser();
   }
-  // 세션 없으면 로그인 화면 유지 (아무것도 안 함)
 }
 
 function renderAdminUploadHistory(metaData) {
@@ -944,11 +984,23 @@ function closeFullscreenImage() {
 ========================================================= */
 let editingCategoryId = null;
 
+function handleCategoryTypeSelectChange(value) {
+  const noticeArea = document.getElementById('grievanceNoticeArea');
+  if(value === 'grievance') {
+    noticeArea.classList.remove('hidden');
+    document.getElementById('categoryNameInput').value = "고충 접수처";
+  } else {
+    noticeArea.classList.add('hidden');
+  }
+}
+
 function openAddCategoryModal() {
   editingCategoryId = null;
   document.getElementById('categoryModalTitle').textContent = '➕ 새 항목 추가';
   document.getElementById('categoryNameInput').value = '';
   document.getElementById('categoryTypeSelect').disabled = false;
+  document.getElementById('categoryTypeSelect').value = 'board';
+  document.getElementById('grievanceNoticeArea').classList.add('hidden');
   document.getElementById('categoryModal').classList.remove('hidden');
 }
 
@@ -958,6 +1010,7 @@ function openEditCategoryModal(id) {
   document.getElementById('categoryNameInput').value = categoriesCache[id].name;
   document.getElementById('categoryTypeSelect').value = categoriesCache[id].type;
   document.getElementById('categoryTypeSelect').disabled = true;
+  document.getElementById('grievanceNoticeArea').classList.add('hidden');
   document.getElementById('categoryModal').classList.remove('hidden');
 }
 
@@ -978,29 +1031,30 @@ function saveCategory() {
     if(type === 'board') icon = '📝';
     if(type === 'schedule') icon = '📅';
     if(type === 'link') icon = '🔗';
+    if(type === 'grievance') icon = '🔒';
     const order = Object.keys(categoriesCache).length + 1;
-    categoriesRef.child(newId).set({ name, type, icon, order });
+    
+    const saveData = { name, type, icon, order };
+    if(type === 'grievance') {
+      saveData.description = "요청 및 고충 접수";
+    }
+    categoriesRef.child(newId).set(saveData);
   }
   closeCategoryModal();
 }
 
 function moveCategoryOrder(id, direction) {
-  // order 값을 1부터 순서대로 정규화한 뒤 swap
   const sorted = Object.keys(categoriesCache).sort((a,b) => (categoriesCache[a].order||0) - (categoriesCache[b].order||0));
   const idx = sorted.indexOf(id);
   const swapIdx = idx + direction;
   if(swapIdx < 0 || swapIdx >= sorted.length) return;
 
-  // 전체 order를 1,2,3... 으로 정규화 후 두 항목만 swap
   const newOrders = {};
   sorted.forEach((k, i) => { newOrders[k] = i + 1; });
   newOrders[sorted[idx]]     = swapIdx + 1;
   newOrders[sorted[swapIdx]] = idx + 1;
 
-  // 로컬 캐시 즉시 반영 (Firebase 응답 전 re-render 대비)
   sorted.forEach(k => { categoriesCache[k].order = newOrders[k]; });
-
-  // Firebase 일괄 저장
   sorted.forEach(k => { categoriesRef.child(k).update({ order: newOrders[k] }); });
 
   renderAdminAll();
@@ -1049,13 +1103,6 @@ async function uploadToR2(file, folderPath, onProgress) {
 <script>
 /* =========================================================
    스케줄 양식 다운로드 & 업로드 엔진 (완전 재설계)
-   
-   양식 구조 (고정):
-   Row 1: 헤더 - ["사번", "이름", 1, 2, 3, ..., 31]
-   Row 2~: 직원 데이터 - [empId, empName, "근무코드", ...]
-   
-   Firebase 저장 구조:
-   scheduleMaster / {empId} / "YYYY-MM-DD" / { code, empName, empId }
 ========================================================= */
 
 /* ── 양식 다운로드 ─────────────────────────────────── */
@@ -1066,7 +1113,7 @@ function downloadScheduleTemplate() {
 
   const wb = XLSX.utils.book_new();
 
-  /* ── 시트1: 근무표 (A=이름, B=사번, C~=날짜) ── */
+  /* ── 시트1: 근무표 ── */
   const headerRow = ['이름', '사번'];
   for(let d = 1; d <= daysInMonth; d++) headerRow.push(d + '일');
 
@@ -1091,7 +1138,7 @@ function downloadScheduleTemplate() {
   for(let d = 0; d < daysInMonth; d++) ws1['!cols'].push({ wch: 5 });
   XLSX.utils.book_append_sheet(wb, ws1, `${year}년${month}월 근무표`);
 
-  /* ── 시트2: 시간코드 매핑표 (설명란에 오전/오후/롱/출퇴출 입력) ── */
+  /* ── 시트2: 시간코드 매핑표 ── */
   const tcRows = [
     ['근무코드', '근무시간 (예: 0730-1630)', '설명 (오전/오후/롱/출퇴출 중 선택)'],
     ['G74', '0730-1630', '오전'],
@@ -1126,7 +1173,7 @@ async function handleScheduleUpload(event) {
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
 
-    /* ── 시간코드 시트 파싱 (코드 → {workTime, shiftType}) ── */
+    /* ── 시간코드 시트 파싱 ── */
     const timeCodeMap = {};
     const tcSheetName = workbook.SheetNames.find(n => n.includes('시간코드'));
     if(tcSheetName) {
@@ -1134,12 +1181,12 @@ async function handleScheduleUpload(event) {
       for(let r = 1; r < tcRows.length; r++) {
         const code      = String(tcRows[r][0] || '').trim();
         const time      = String(tcRows[r][1] || '').trim();
-        const shiftType = String(tcRows[r][2] || '').trim(); // 오전/오후/롱/출퇴출
+        const shiftType = String(tcRows[r][2] || '').trim();
         if(code) timeCodeMap[code] = { workTime: time, shiftType };
       }
     }
 
-    /* ── 근무표 시트 파싱 (A=이름, B=사번) ── */
+    /* ── 근무표 시트 파싱 ── */
     const ws = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
 
@@ -1171,8 +1218,8 @@ async function handleScheduleUpload(event) {
 
     for(let r = 1; r < rows.length; r++) {
       const row     = rows[r];
-      const empName = String(row[0] || '').trim(); // A열=이름
-      const empId   = String(row[1] || '').trim(); // B열=사번
+      const empName = String(row[0] || '').trim();
+      const empId   = String(row[1] || '').trim();
       if(!empId) continue;
 
       if(!updateMap[empId]) updateMap[empId] = {};
@@ -1208,7 +1255,6 @@ async function handleScheduleUpload(event) {
     );
     await Promise.all(promises);
 
-    // ✅ 업로드 이력 메타 저장 (새로고침해도 유지)
     const metaKey = `${yStr}${mStr}`;
     const now = new Date();
     const uploadedAt = now.toLocaleString('ko-KR');
@@ -1269,11 +1315,53 @@ async function deleteMonthSchedule() {
 
 <script>
 /* =========================================================
-   관리자 UI 렌더링 엔진 (최소화/최대화 기능 제어)
+   관리자 UI 렌더링 엔진
 ========================================================= */
 function toggleMinimizeSection(catId) {
   isFileListMinimizedMap[catId] = !isFileListMinimizedMap[catId];
   renderAdminAll();
+}
+
+function unlockGrievanceInspection(catId) {
+  const pw = prompt("🔑 고충 접수내역을 조회하려면 CM 확인 비밀번호를 입력하세요.");
+  if(!pw) return;
+  
+  // 고충 접수 조회 비밀번호 skdmlwlq12@@ 로 완벽 교체 완료
+  if(pw !== "skdmlwlq12@@") {
+    alert("❌ 비밀번호가 올바르지 않습니다. CM만 확인 가능합니다.");
+    return;
+  }
+  
+  const listWrap = document.getElementById(`grivContentArea_${catId}`);
+  if(!listWrap) return;
+  
+  const itemsData = dynamicDataCache[catId] || {};
+  const items = Object.keys(itemsData).map(k => ({id: k, ...itemsData[k]})).sort((a,b) => b.timestamp - a.timestamp);
+  
+  if(items.length === 0) {
+    listWrap.innerHTML = '<li class="empty-msg">접수된 고충 내역이 없습니다.</li>';
+    return;
+  }
+  
+  listWrap.innerHTML = items.map(item => {
+    if(!item.isAdminRead) {
+      dataRef.child(catId).child(item.id).update({ isAdminRead: true });
+    }
+    
+    return `
+      <li class="file-item" style="display:block; background:#fff; text-align:left; border-left: 4px solid #de5246;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px dashed #eef0fa; padding-bottom:6px;">
+          <span style="font-weight:700; color:#de5246; font-size:13px;">👤 접수자: ${escapeHtml(item.writerName)} (${escapeHtml(item.writerId)})</span>
+          <span style="font-size:11px; color:#aaa;">등록시간: ${item.date}</span>
+        </div>
+        <div style="font-weight:700; font-size:14px; color:#2b2f3e; margin-bottom:6px;">제목: ${escapeHtml(item.title)}</div>
+        <div style="font-size:13px; color:#444; white-space:pre-wrap; background:#f8f9fd; padding:10px; border-radius:6px; border:1px solid #eef0fa; margin-bottom:8px; line-height:1.5;">${escapeHtml(item.content)}</div>
+        <div style="text-align:right;">
+          <button class="del-btn" style="margin-left:0; padding:4px 10px;" onclick="deleteDataItem('${catId}','${item.id}')">내역 파기(삭제)</button>
+        </div>
+      </li>
+    `;
+  }).join('');
 }
 
 function renderAdminAll() {
@@ -1301,16 +1389,26 @@ function renderAdminAll() {
     const isFirst = idx === 0;
     const isLast  = idx === sortedKeys.length - 1;
 
+    let alertBadgeHtml = "";
+    if(cat.type === 'grievance') {
+      section.style.borderLeft = "5px solid #de5246";
+      const itemsData = dynamicDataCache[catId] || {};
+      const unreadGrivCount = Object.keys(itemsData).filter(k => !itemsData[k].isAdminRead).length;
+      if(unreadGrivCount > 0) {
+        alertBadgeHtml = `<span class="notice-badge" style="margin-left:6px; background:linear-gradient(135deg,#ff4b4b,#de5246);">${unreadGrivCount}</span>`;
+      }
+    }
+
     section.innerHTML = `
       <div class="category-title-wrap">
         <h3>
-          ${cat.icon} <span>${escapeHtml(cat.name)}</span>
+          ${cat.icon} <span>${escapeHtml(cat.name)}</span> ${alertBadgeHtml}
           <span class="edit-title-icon" onclick="openEditCategoryModal('${catId}')">✏️</span>
         </h3>
         <div style="display:flex; gap:6px; align-items:center;">
           <button class="order-btn" onclick="moveCategoryOrder('${catId}',-1)" ${isFirst?'disabled':''}>▲</button>
           <button class="order-btn" onclick="moveCategoryOrder('${catId}',1)"  ${isLast ?'disabled':''}>▼</button>
-          ${cat.type !== 'schedule' ? `<button class="toggle-minimize-btn" onclick="toggleMinimizeSection('${catId}')">${isFileListMinimizedMap[catId] ? '📁 목록 펼치기' : '📂 목록 접기'}</button>` : ''}
+          ${(cat.type !== 'schedule' && cat.type !== 'grievance') ? `<button class="toggle-minimize-btn" onclick="toggleMinimizeSection('${catId}')">${isFileListMinimizedMap[catId] ? '📁 목록 펼치기' : '📂 목록 접기'}</button>` : ''}
           <button class="delete-category-btn" onclick="deleteCategory('${catId}')">❌ 항목 삭제</button>
         </div>
       </div>
@@ -1324,6 +1422,28 @@ function renderAdminAll() {
       schDiv.style.color = '#4e65df';
       schDiv.innerHTML = `📅 <strong>근무 스케줄 관리 안내:</strong><br>본 항목은 상단에 위치한 '스마트 엑셀 스케줄 관리 엔진' 업로더와 자동 맵핑되는 고유 시스템입니다. 수정 및 파일 변경은 상단 업로더를 이용하세요.`;
       section.appendChild(schDiv);
+      container.appendChild(section);
+      return;
+    }
+
+    if(cat.type === 'grievance') {
+      const grivData = dynamicDataCache[catId] || {};
+      const totalCount = Object.keys(grivData).length;
+      
+      const grivBox = document.createElement('div');
+      grivBox.innerHTML = `
+        <div style="background:#fff1f1; border:1px dashed #ff8a8a; border-radius:10px; padding:14px; margin-bottom:12px; text-align:left;">
+          <div style="font-size:13px; font-weight:700; color:#de5246; margin-bottom:4px;">🔒 고충 접수 정보 보안함</div>
+          <div style="font-size:12px; color:#444; font-weight:600; margin-bottom:8px;">부가설명: "${escapeHtml(cat.description || '요청 및 고충 접수')}"</div>
+          <div style="font-size:11px; color:#666; line-height:1.5;">본 항목은 직원 전용 투고함입니다. 비밀번호 인증 전까지는 화면 코드와 캐시에 작성자 정보, 접수 내용이 노출되지 않고 완전 blind 처리됩니다.</div>
+        </div>
+        <div style="background:#f4f6fb; padding:18px; border-radius:12px; text-align:center; border:1px solid #eef0fa;">
+          <div style="font-size:15px; font-weight:800; color:#2b2f3e; margin-bottom:12px;">📊 접수 현황 : <span style="color:#de5246;">${totalCount}건 접수되었습니다</span></div>
+          <button class="upload-btn" style="background:linear-gradient(135deg,#6d83ff,#4e65df); margin:0 auto;" onclick="unlockGrievanceInspection('${catId}')">🔑 비밀번호 치고 내역 조회하기</button>
+        </div>
+        <ul id="grivContentArea_${catId}" class="file-list" style="margin-top:14px; max-height:400px; overflow-y:auto;"></ul>
+      `;
+      section.appendChild(grivBox);
       container.appendChild(section);
       return;
     }
@@ -1425,8 +1545,15 @@ function renderUserMenu() {
     card.setAttribute('onclick', `openCategory('${catId}')`);
 
     let unreadCount = 0;
+    // 고충접수 회색 가이드 문구 간결화 교체 완료
+    let subDescription = cat.type==='board'?'안내글 및 게시사항 확인':cat.type==='schedule'?'달력식 실시간 개인 근무 확인':'자료실 및 파일 확인';
+    
     if (cat.type === 'schedule') {
       if (myEmpId) unreadCount = parseInt(localStorage.getItem(`unreadcount_${myEmpId}`) || '0', 10);
+    } else if(cat.type === 'grievance') {
+      subDescription = cat.description || "요청 및 고충 접수";
+      const itemsData = dynamicDataCache[catId] || {};
+      unreadCount = Object.keys(itemsData).filter(k => !itemsData[k].isAdminRead).length;
     } else {
       const lastSeen = parseInt(localStorage.getItem(`cat_lastseen_${catId}`) || '0', 10);
       const itemsData = dynamicDataCache[catId] || {};
@@ -1442,10 +1569,10 @@ function renderUserMenu() {
     }
 
     card.innerHTML = `
-      <div class="icon" style="${catId==='standard'?'background:linear-gradient(135deg,#34c98f,#6de0b8);':''} ${catId==='schedule'?'background:linear-gradient(135deg,#8b6df8,#a78bfa);':''}">${cat.icon}${badgeHtml}</div>
+      <div class="icon" style="${catId==='standard'?'background:linear-gradient(135deg,#34c98f,#6de0b8);':''} ${catId==='schedule'?'background:linear-gradient(135deg,#8b6df8,#a78bfa);':''} ${cat.type==='grievance'?'background:linear-gradient(135deg,#ff7675,#de5246);':''}">${cat.icon}${badgeHtml}</div>
       <div class="text">
         <h4>${escapeHtml(cat.name)}</h4>
-        <p>${cat.type==='board'?'안내글 및 게시사항 확인':cat.type==='schedule'?'달력식 실시간 개인 근무 확인':'자료실 및 파일 확인'}</p>
+        <p>${subDescription}</p>
       </div>
     `;
     container.appendChild(card);
@@ -1552,7 +1679,6 @@ async function saveBoardItem() {
     }
 
     if(attachedImageFile) {
-      // R2 대신 Base64로 Firebase에 직접 저장 (CORS 문제 없이 100% 표시)
       imageUrl = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = e => resolve(e.target.result);
@@ -1624,7 +1750,7 @@ async function saveLinkItem() {
 
 <script>
 /* =========================================================
-   일반 모드(회원용) 및 달력 상시 가동 표출 컴포넌트
+   일반 모드(회원용) 및 로그인 제어 파트
 ========================================================= */
 async function doLogin() {
   const id  = document.getElementById('loginId').value.trim();
@@ -1635,7 +1761,7 @@ async function doLogin() {
   err.textContent = '';
   if (!id || !pw) { err.textContent = '사번과 비밀번호를 모두 입력해 주세요.'; return; }
 
-  // ── 관리자 ──
+  // 관리자 ID 및 PW인 PUSEDU 매칭 변경 세팅부
   if (id === ADMIN_ID && pw === ADMIN_PW) {
     localStorage.setItem(LOGGED_IN_ID_KEY, id);
     localStorage.setItem('loggedInUserName', '');
@@ -1644,7 +1770,6 @@ async function doLogin() {
     return;
   }
 
-  // ── 마스터 폴백 ──
   if (id === USER_ID && pw === 'PUSDOC') {
     localStorage.setItem(LOGGED_IN_ID_KEY, id);
     localStorage.setItem('loggedInUserName', '마스터');
@@ -1653,18 +1778,15 @@ async function doLogin() {
     return;
   }
 
-  // ── Firebase 직접 조회 (캐시 타이밍 문제 완전 우회) ──
   btn.disabled = true;
   btn.textContent = '확인 중...';
   err.textContent = '';
 
   try {
-    // 사번으로 직접 조회
     let snap = await userAccountsRef.child(id).once('value');
     let account = snap.val();
     let accountKey = id;
 
-    // 사번으로 못 찾으면 전체에서 이름으로 탐색
     if (!account) {
       const allSnap = await userAccountsRef.once('value');
       const all = allSnap.val() || {};
@@ -1677,7 +1799,6 @@ async function doLogin() {
       return;
     }
 
-    // 최초 로그인 → 입력한 비밀번호를 초기 PW로 등록
     if (account.pw === '' || account.pw == null) {
       await userAccountsRef.child(accountKey).update({ pw: pw });
       alert('🔒 비밀번호 등록 완료!\n입력하신 번호가 초기 비밀번호로 설정되었습니다.');
@@ -1745,6 +1866,7 @@ function showMenu() {
   document.getElementById('userTitle').textContent = 'PUS여객';
   currentCategory = null;
   renderUserMenu(); 
+  updateNoticeBadge();
 }
 
 function initCalendarSelectors() {
@@ -1783,6 +1905,7 @@ function openCategory(category) {
   if(catInfo && catInfo.type === 'schedule') {
     document.getElementById('userSearchBoxWrap').classList.add('hidden');
     document.getElementById('userFileList').classList.add('hidden');
+    document.getElementById('userGrievanceWrap').classList.add('hidden');
     document.getElementById('userCalendarWrap').classList.remove('hidden'); 
     initCalendarSelectors();
 
@@ -1792,10 +1915,17 @@ function openCategory(category) {
       localStorage.setItem(`unreadcount_${myEmpId}`, '0');
     }
     renderScheduleCalendar();
+  } else if(catInfo && catInfo.type === 'grievance') {
+    document.getElementById('userSearchBoxWrap').classList.add('hidden');
+    document.getElementById('userFileList').classList.add('hidden');
+    document.getElementById('userCalendarWrap').classList.add('hidden');
+    document.getElementById('userGrievanceWrap').classList.remove('hidden');
+    renderUserGrievance();
   } else {
     document.getElementById('userSearchBoxWrap').classList.remove('hidden');
     document.getElementById('userFileList').classList.remove('hidden');
     document.getElementById('userCalendarWrap').classList.add('hidden');
+    document.getElementById('userGrievanceWrap').classList.add('hidden');
     document.getElementById('searchInput').value = '';
     
     localStorage.setItem(`cat_lastseen_${category}`, String(Date.now()));
@@ -1803,10 +1933,11 @@ function openCategory(category) {
   }
 
   if (category === 'notice') markNoticesRead();
+  else updateNoticeBadge();
 }
 
 /* =========================================================
-   한국 공휴일 데이터 (연도별 고정 공휴일 + 대체공휴일 포함)
+   한국 공휴일 데이터
 ========================================================= */
 function getKoreanHolidays(year) {
   const fixed = [
@@ -1950,6 +2081,7 @@ function checkScheduleChangesBackground() {
   
   const currentMonth = now.getMonth() + 1;
   renderHistoryModuleData(myEmpId, currentYear, currentMonth);
+  updateNoticeBadge();
 }
 
 /* =========================================================
@@ -2100,7 +2232,7 @@ function renderScheduleCalendar() {
 }
 
 /* =========================================================
-   변경 내역 전용 토글, 삭제 및 렌더링 제어 핸들러
+   변경 내역 전용 제어 핸들러
 ========================================================= */
 function toggleHistoryPopup(event) {
   event.stopPropagation();
@@ -2132,6 +2264,7 @@ function clearUserHistoryLogs() {
   const month = parseInt(document.getElementById('calendarMonthSelect').value, 10);
   renderHistoryModuleData(myEmpId, year, month);
   document.getElementById('historyPopupWrap').classList.add('hidden');
+  updateNoticeBadge();
   alert('변경 내역이 완전하게 소멸되었습니다.');
 }
 
@@ -2169,6 +2302,148 @@ document.addEventListener('click', function() {
 });
 
 function backToMenu() { showMenu(); }
+
+let activeGrivItemId = null;
+
+function renderUserGrievance() {
+  if (!currentCategory) return;
+  const container = document.getElementById('userGrievanceList');
+  container.innerHTML = '';
+  
+  const myEmpId = (localStorage.getItem(LOGGED_IN_ID_KEY) || '').trim();
+  const itemsData = dynamicDataCache[currentCategory] || {};
+  
+  const myItems = Object.keys(itemsData)
+    .map(k => ({id: k, ...itemsData[k]}))
+    .filter(item => item.writerId === myEmpId)
+    .sort((a,b) => b.timestamp - a.timestamp);
+    
+  if(myItems.length === 0) {
+    container.innerHTML = '<div class="no-result">내가 접수한 고충 내역이 없습니다.</div>';
+    return;
+  }
+  
+  myItems.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'doc-item';
+    div.style.display = 'block';
+    
+    const readStatusHtml = item.isAdminRead 
+      ? '<span style="color:#aaa; font-weight:bold; font-size:11px; margin-left:6px;">[CM확인완료 - 수정 불가]</span>' 
+      : '<span style="color:#27ae60; font-weight:bold; font-size:11px; margin-left:6px;">[접수대기 - 수정 가능]</span>';
+      
+    div.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+        <div style="flex:1; min-width:0; padding-right:8px;">
+          <div style="font-weight:700; font-size:14px; color:#2b2f3e; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🔒 ${escapeHtml(item.title)}</div>
+          <div style="font-size:11px; color:#aaa; margin-top:3px;">접수일: ${item.date} ${readStatusHtml}</div>
+        </div>
+        <div style="flex-shrink:0; display:flex; gap:6px;">
+          <button class="del-btn" style="background:#6d83ff; padding:5px 10px; font-size:12px; margin-left:0;" onclick="viewOrEditGrievance('${item.id}', 'edit'); event.stopPropagation();">수정</button>
+          <button class="del-btn" style="background:#4e65df; padding:5px 10px; font-size:12px; margin-left:0;" onclick="viewOrEditGrievance('${item.id}', 'view'); event.stopPropagation();">보기</button>
+        </div>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function openGrievanceEditor() {
+  activeGrivItemId = null;
+  document.getElementById('grievanceEditorTitle').textContent = '🔒 새로운 고충 접수처 신청';
+  document.getElementById('grivTitleInput').value = '';
+  document.getElementById('grivContentInput').value = '';
+  document.getElementById('grivPwInput').value = '';
+  document.getElementById('grivPwInput').disabled = false;
+  document.getElementById('grievanceEditorModal').classList.remove('hidden');
+}
+
+function closeGrievanceEditor() {
+  document.getElementById('grievanceEditorModal').classList.add('hidden');
+}
+
+function viewOrEditGrievance(itemId, mode) {
+  const item = dynamicDataCache[currentCategory][itemId];
+  if(!item) return;
+  
+  const typedPw = prompt("🔒 본인 확인을 위해 글 작성 시 입력했던 비밀번호를 기입하세요.");
+  if(!typedPw) return;
+  if(item.grivPw !== typedPw) {
+    alert("❌ 비밀번호가 올바르지 않습니다.");
+    return;
+  }
+  
+  if(mode === 'view') {
+    document.getElementById('grivViewMeta').textContent = `${item.date} / 상태: ${item.isAdminRead?'CM확인함':'대기중'}`;
+    document.getElementById('grivViewTitle').textContent = `제목: ${item.title}`;
+    document.getElementById('grivViewContent').textContent = item.content;
+    document.getElementById('grievanceViewModal').classList.remove('hidden');
+  } else if(mode === 'edit') {
+    if(item.isAdminRead) {
+      alert("🔒 CM이 이미 해당 고충 접수 내역을 확인하고 처리 중이므로 더 이상 수정이 불가능합니다.");
+      return;
+    }
+    
+    activeGrivItemId = itemId;
+    document.getElementById('grievanceEditorTitle').textContent = '✏️ 고충 접수 내용 수정';
+    document.getElementById('grivTitleInput').value = item.title;
+    document.getElementById('grivContentInput').value = item.content;
+    document.getElementById('grivPwInput').value = item.grivPw;
+    document.getElementById('grivPwInput').disabled = true;
+    document.getElementById('grievanceEditorModal').classList.remove('hidden');
+  }
+}
+
+function closeGrievanceView() {
+  document.getElementById('grievanceViewModal').classList.add('hidden');
+}
+
+async function saveGrievanceItem() {
+  const title = document.getElementById('grivTitleInput').value.trim();
+  const content = document.getElementById('grivContentInput').value.trim();
+  const grivPw = document.getElementById('grivPwInput').value.trim();
+  
+  if(!title || !content) { alert('제목과 고충 본문을 입력해 주세요.'); return; }
+  if(!grivPw) { alert('⚠️ 글을 보호하고 본인만 수정하기 위해 반드시 암호(비밀번호)를 기입하셔야 저장 가능합니다.'); return; }
+  
+  const confirmBtn = document.querySelector('#grievanceEditorModal .modal-confirm');
+  confirmBtn.disabled = true;
+  
+  const myEmpId = (localStorage.getItem(LOGGED_IN_ID_KEY) || '').trim();
+  const myEmpName = (localStorage.getItem('loggedInUserName') || '사원').trim();
+  const dateStr = new Date().toLocaleString('ko-KR');
+  
+  try {
+    if(activeGrivItemId) {
+      const currentItem = dynamicDataCache[currentCategory][activeGrivItemId];
+      if(currentItem && currentItem.isAdminRead) {
+        alert("🔒 수정 실패: 관리자가 검토 처리를 시작한 내역은 수정할 수 없습니다.");
+        closeGrievanceEditor();
+        return;
+      }
+      
+      await dataRef.child(currentCategory).child(activeGrivItemId).update({
+        title, content, date: dateStr
+      });
+    } else {
+      const newItemId = 'griv_' + Date.now();
+      await dataRef.child(currentCategory).child(newItemId).set({
+        title, content, grivPw,
+        writerId: myEmpId,
+        writerName: myEmpName,
+        date: dateStr,
+        timestamp: Date.now(),
+        isAdminRead: false
+      });
+    }
+    closeGrievanceEditor();
+    alert("🔒 고충 접수처에 안전하게 등록되었습니다. 절대 비밀이 보장됩니다.");
+  } catch(e) {
+    alert("접수 중 서버 오류가 발생했습니다.");
+  } finally {
+    confirmBtn.disabled = false;
+  }
+}
 
 function renderUserFiles() {
   if (!currentCategory || !categoriesCache[currentCategory]) return;
@@ -2278,26 +2553,49 @@ function closePreview() {
 }
 const NOTICE_LAST_SEEN_KEY = 'eduSiteNoticeNoticeLastSeenTs';
 function getNoticeLastSeenTs() { return parseInt(localStorage.getItem(NOTICE_LAST_SEEN_KEY) || '0', 10); }
+
 function markNoticesRead() {
   const noticesData = dynamicDataCache['notice'] || {};
   const maxTs = Object.keys(noticesData).reduce((m, k) => Math.max(m, noticesData[k].timestamp || 0), 0);
   localStorage.setItem(NOTICE_LAST_SEEN_KEY, String(Math.max(maxTs, Date.now())));
   updateNoticeBadge();
 }
+
 function updateNoticeBadge() {
-  const lastSeen = getNoticeLastSeenTs();
+  const myEmpId = (localStorage.getItem(LOGGED_IN_ID_KEY) || '').trim();
+  let totalUnread = 0;
+
+  const lastSeenNotice = getNoticeLastSeenTs();
   const noticesData = dynamicDataCache['notice'] || {};
-  const unread = Object.keys(noticesData).filter(k => (noticesData[k].timestamp || 0) > lastSeen).length;
-  const headerBadge = document.getElementById('noticeBadgeHeader');
-  const menuBadge = document.getElementById('noticeBadgeMenu');
-  [headerBadge, menuBadge].forEach(el => {
-    if (!el) return;
-    if (unread > 0) {
-      el.textContent = unread > 99 ? '99+' : String(unread);
-      el.classList.remove('hidden');
-    } else { el.classList.add('hidden'); }
+  totalUnread += Object.keys(noticesData).filter(k => (noticesData[k].timestamp || 0) > lastSeenNotice).length;
+
+  Object.keys(categoriesCache).forEach(catId => {
+    if (catId === 'notice') return; 
+    const cat = categoriesCache[catId];
+    if (cat.type === 'grievance') return; 
+
+    if (cat.type === 'schedule') {
+      if (myEmpId) {
+        totalUnread += parseInt(localStorage.getItem(`unreadcount_${myEmpId}`) || '0', 10);
+      }
+    } else {
+      const lastSeen = parseInt(localStorage.getItem(`cat_lastseen_${catId}`) || '0', 10);
+      const itemsData = dynamicDataCache[catId] || {};
+      totalUnread += Object.keys(itemsData).filter(k => (itemsData[k].timestamp || 0) > lastSeen).length;
+    }
   });
+
+  const headerBadge = document.getElementById('noticeBadgeHeader');
+  if (headerBadge) {
+    if (totalUnread > 0) {
+      headerBadge.textContent = totalUnread > 99 ? '99+' : String(totalUnread);
+      headerBadge.classList.remove('hidden');
+    } else { 
+      headerBadge.classList.add('hidden'); 
+    }
+  }
 }
+
 function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
@@ -2307,7 +2605,7 @@ document.getElementById('loginPw').addEventListener('keydown', e => { if (e.key 
 document.getElementById('previewFrame').addEventListener('contextmenu', e => e.preventDefault());
 
 /* =========================================================
-   FCM 푸시 알림 시스템 (V1 API - Cloudflare Worker 경유)
+   FCM 푸시 알림 시스템
 ========================================================= */
 const FCM_VAPID_KEY = 'BLbxRitLNS6G-B8jLtDsxm9DaVBkFalVgV7HbXbVdScIUqbsz9NgdgUqjLQQ073fMhfFONv4SJgoCzDKqhEV8Ig';
 const FCM_WORKER_URL = 'https://pusdoc.jeongkil0486.workers.dev/fcm-send';
@@ -2322,7 +2620,6 @@ async function initFCM() {
     const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
     fcmMessaging = firebase.messaging();
 
-    // 포그라운드 수신 (앱 열려있을 때)
     fcmMessaging.onMessage(payload => {
       const title = payload.notification?.title || 'PUS DOC';
       const body  = payload.notification?.body  || '새 알림이 있습니다.';
@@ -2354,7 +2651,6 @@ async function registerFCMToken() {
   }
 }
 
-// enterUser 호출 시 FCM 자동 초기화 - 함수 재정의 방식 제거, 직접 호출로 변경
 function initFCMAfterLogin() {
   setTimeout(initFCM, 1000);
 }
@@ -2392,7 +2688,6 @@ async function sendPushNotification() {
 
     status.textContent = `⏳ ${tokens.length}명에게 전송 중...`;
 
-    // Cloudflare Worker로 전송 요청
     const res = await fetch(FCM_WORKER_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': UPLOAD_SECRET },

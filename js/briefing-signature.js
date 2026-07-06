@@ -127,22 +127,30 @@ async function handleBriefingTemplateUpload(event) {
 /* =========================================================
    관리자 화면 - 브리핑일지 달력 + 양식 등록
 ========================================================= */
+let adminBriefingSelectedYM = {};
+
 function initAdminBriefingSelectors(catId) {
   const yearSel = document.getElementById(`adminBriefYear_${catId}`);
   const monthSel = document.getElementById(`adminBriefMonth_${catId}`);
-  if (!yearSel || !monthSel || yearSel.options.length > 0) return;
+  if (!yearSel || !monthSel) return;
 
+  // adminSectionsContainer 전체가 자주 재렌더링되므로(다른 카테고리 데이터 변경 시에도 발생),
+  // 매번 select가 새로 생성됨 -> 이전에 선택했던 년/월을 복원해서 "현재월로 리셋" 되는 것을 방지
   const now = new Date();
+  const saved = adminBriefingSelectedYM[catId] || { year: now.getFullYear(), month: now.getMonth() + 1 };
+
+  yearSel.innerHTML = '';
+  monthSel.innerHTML = '';
   for (let y = now.getFullYear() - 1; y <= now.getFullYear() + 1; y++) {
     const opt = document.createElement('option');
     opt.value = y; opt.textContent = y + '년';
-    if (y === now.getFullYear()) opt.selected = true;
+    if (y === saved.year) opt.selected = true;
     yearSel.appendChild(opt);
   }
   for (let m = 1; m <= 12; m++) {
     const opt = document.createElement('option');
     opt.value = m; opt.textContent = m + '월';
-    if (m === now.getMonth() + 1) opt.selected = true;
+    if (m === saved.month) opt.selected = true;
     monthSel.appendChild(opt);
   }
 }
@@ -188,6 +196,7 @@ function renderAdminBriefingCalendar(catId) {
   const now = new Date();
   const year = yearSel ? parseInt(yearSel.value, 10) : now.getFullYear();
   const month = monthSel ? parseInt(monthSel.value, 10) : now.getMonth() + 1;
+  adminBriefingSelectedYM[catId] = { year, month };
   const first = new Date(year, month - 1, 1);
   const lastDate = new Date(year, month, 0).getDate();
   const startDay = first.getDay();

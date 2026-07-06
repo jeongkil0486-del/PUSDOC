@@ -133,8 +133,8 @@ function renderAdminAll() {
     }
 
     if(cat.type === 'briefing') {
-      if(typeof renderAdminBriefingSection === 'function') renderAdminBriefingSection(section, catId);
       container.appendChild(section);
+      if(typeof renderAdminBriefingSection === 'function') renderAdminBriefingSection(section, catId);
       return;
     }
 

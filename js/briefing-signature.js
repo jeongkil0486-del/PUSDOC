@@ -147,6 +147,7 @@ async function confirmBriefing(catId, itemId) {
     briefingId: itemId,
     briefingTitle: item.title || '',
     briefingDate: item.date || '',
+    briefingDateKey: getBriefingItemDateKey(item),
     empId: id,
     empName: name,
     signature,
@@ -230,7 +231,7 @@ function renderBriefingUserList(keyword, container, items) {
     div.innerHTML = `
       <div style="display:flex; align-items:center; gap:12px;">
         <div class="picon" style="background:linear-gradient(135deg,#6d83ff,#8b6df8); flex-shrink:0;">🛫</div>
-        <div class="pname" style="font-weight:700;">${escapeHtml(n.title || '')}<br><span style="font-size:11px; color:#aaa; font-weight:normal;">${escapeHtml(n.date || '')}</span></div>
+        <div class="pname" style="font-weight:700;">${escapeHtml(n.title || '')}<br><span style="font-size:11px; color:#aaa; font-weight:normal;">${escapeHtml(n.briefingDateKey || n.date || '')}</span></div>
       </div>
       <div style="font-size:13px; color:#444; line-height:1.6; white-space:pre-wrap; background:#f8f9fd; border:1px solid #eef0fa; border-radius:10px; padding:12px; margin-top:12px;">${escapeHtml(n.content || '')}</div>
       ${btnHtml}
@@ -275,3 +276,205 @@ viewBoardItem = function(catId, id) {
     }
   }
 };
+
+/* =========================================================
+   브리핑일지 엑셀 양식 연동 다운로드 모듈
+   - 양식은 Firebase briefingTemplate 또는 /templates/briefing-template.xlsx 사용
+   - 직원 확인 시 저장된 서명 이미지를 해당 날짜 시트의 이름 옆 Signature 칸에 삽입
+========================================================= */
+function dataUrlToArrayBuffer(dataUrl) {
+  const base64 = String(dataUrl || '').split(',')[1] || '';
+  const binary = atob(base64);
+  const len = binary.length;
+  const bytes = new Uint8Array(len);
+  for(let i=0; i<len; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+function arrayBufferToDataUrl(buffer, mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const chunkSize = 0x8000;
+  for(let i=0; i<bytes.length; i+=chunkSize) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i+chunkSize));
+  }
+  return `data:${mime};base64,${btoa(binary)}`;
+}
+
+async function handleBriefingTemplateUpload(event) {
+  const file = event.target.files && event.target.files[0];
+  if(!file) return;
+  if(!/\.xlsx$/i.test(file.name)) { alert('엑셀 파일(.xlsx)만 등록할 수 있습니다.'); event.target.value=''; return; }
+  const reader = new FileReader();
+  reader.onload = async e => {
+    try {
+      await briefingTemplateRef.set({
+        fileName: file.name,
+        dataUrl: e.target.result,
+        updatedAt: new Date().toLocaleString('ko-KR'),
+        updatedAtTs: Date.now()
+      });
+      alert('브리핑일지 엑셀 양식이 등록되었습니다. 이제 월별 다운로드 시 이 양식을 기준으로 서명이 들어갑니다.');
+    } catch(err) {
+      alert('양식 저장 중 오류가 발생했습니다. 파일 용량이 너무 크면 저장이 실패할 수 있습니다.');
+    } finally {
+      event.target.value = '';
+    }
+  };
+  reader.onerror = () => alert('엑셀 파일을 읽지 못했습니다.');
+  reader.readAsDataURL(file);
+}
+
+async function loadBriefingTemplateBuffer() {
+  if(briefingTemplateCache && briefingTemplateCache.dataUrl) {
+    return dataUrlToArrayBuffer(briefingTemplateCache.dataUrl);
+  }
+  const res = await fetch('templates/briefing-template.xlsx');
+  if(!res.ok) throw new Error('기본 브리핑 양식을 찾을 수 없습니다.');
+  return await res.arrayBuffer();
+}
+
+function normalizeBriefingName(value) {
+  return String(value || '').replace(/\s+/g, '').trim();
+}
+
+function getBriefingItemDateKey(item) {
+  if(item && item.briefingDateKey) return item.briefingDateKey;
+  const ts = item && item.timestamp ? new Date(item.timestamp) : null;
+  if(ts && !isNaN(ts.getTime())) {
+    return `${ts.getFullYear()}-${String(ts.getMonth()+1).padStart(2,'0')}-${String(ts.getDate()).padStart(2,'0')}`;
+  }
+  return '';
+}
+
+function findBriefingWorksheet(workbook, dateKey) {
+  const d = new Date(dateKey + 'T00:00:00');
+  if(isNaN(d.getTime())) return null;
+  const month = d.getMonth() + 1;
+  const day = d.getDate();
+  const candidates = [
+    dateKey,
+    `${month}-${day}`, `${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`,
+    `${month}.${day}`, `${String(month).padStart(2,'0')}.${String(day).padStart(2,'0')}`,
+    `${day}`, `${String(day).padStart(2,'0')}`,
+    `${month}월 ${day}일`, `${day}일`
+  ].map(v => String(v).toLowerCase().replace(/\s+/g,''));
+  let ws = workbook.worksheets.find(sh => candidates.includes(String(sh.name).toLowerCase().replace(/\s+/g,'')));
+  if(ws) return ws;
+  ws = workbook.worksheets.find(sh => {
+    const nm = String(sh.name).toLowerCase().replace(/\s+/g,'');
+    return candidates.some(c => nm.includes(c));
+  });
+  if(ws) return ws;
+  return workbook.worksheets[day - 1] || workbook.worksheets[0] || null;
+}
+
+function findSignatureCellByName(worksheet, empName) {
+  const target = normalizeBriefingName(empName);
+  if(!target) return null;
+  const maxRow = Math.min(worksheet.rowCount || 200, 220);
+  const maxCol = Math.min(worksheet.columnCount || 30, 30);
+  for(let r=1; r<=maxRow; r++) {
+    for(let c=1; c<=maxCol; c++) {
+      const cellVal = worksheet.getCell(r, c).value;
+      let text = '';
+      if(cellVal && typeof cellVal === 'object') text = cellVal.text || cellVal.result || cellVal.richText?.map(x=>x.text).join('') || '';
+      else text = cellVal || '';
+      if(normalizeBriefingName(text) === target) {
+        // 기본 양식이 No / Name / Signature 반복 구조라 이름 오른쪽 칸을 우선 사용
+        return { row: r, col: c + 1 };
+      }
+    }
+  }
+  return null;
+}
+
+function setCellPlainText(cell, text) {
+  cell.value = text || '';
+  cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: false };
+  cell.font = { name: 'Malgun Gothic', size: 10 };
+}
+
+function triggerWorkbookDownload(buffer, fileName) {
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function downloadBriefingTemplateExcel(catId) {
+  if(typeof ExcelJS === 'undefined') { alert('ExcelJS 라이브러리가 로드되지 않았습니다. 인터넷 연결 또는 CDN 로드를 확인해 주세요.'); return; }
+  const yearSel = document.getElementById('adminSchYear');
+  const monthSel = document.getElementById('adminSchMonth');
+  const year = yearSel ? parseInt(yearSel.value, 10) : new Date().getFullYear();
+  const month = monthSel ? parseInt(monthSel.value, 10) : (new Date().getMonth()+1);
+  const ym = `${year}-${String(month).padStart(2,'0')}`;
+
+  const itemsData = dynamicDataCache[catId] || {};
+  const briefingItems = Object.keys(itemsData)
+    .map(k => ({ id:k, ...itemsData[k] }))
+    .filter(item => getBriefingItemDateKey(item).startsWith(ym))
+    .sort((a,b) => String(getBriefingItemDateKey(a)).localeCompare(String(getBriefingItemDateKey(b))));
+
+  if(briefingItems.length === 0) {
+    alert(`${year}년 ${month}월에 등록된 브리핑일지가 없습니다.`);
+    return;
+  }
+
+  try {
+    const templateBuffer = await loadBriefingTemplateBuffer();
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(templateBuffer);
+
+    let insertedCount = 0;
+    let missingNameCount = 0;
+    const used = new Set();
+
+    for(const item of briefingItems) {
+      const dateKey = getBriefingItemDateKey(item);
+      const ws = findBriefingWorksheet(workbook, dateKey);
+      if(!ws) continue;
+
+      const confirms = briefingConfirmationsCache[item.id] || {};
+      Object.keys(confirms).forEach(empId => {
+        const c = confirms[empId] || {};
+        const empName = c.empName || (userAccountsCache[empId] && userAccountsCache[empId].empName) || '';
+        const hit = findSignatureCellByName(ws, empName);
+        if(!hit) { missingNameCount++; return; }
+        const key = `${ws.name}:${hit.row}:${hit.col}:${empId}`;
+        if(used.has(key)) return;
+        used.add(key);
+        const cell = ws.getCell(hit.row, hit.col);
+        if(c.signature && /^data:image\/png;base64,/.test(c.signature)) {
+          try {
+            const imgId = workbook.addImage({ base64: c.signature, extension: 'png' });
+            ws.addImage(imgId, {
+              tl: { col: hit.col - 1 + 0.08, row: hit.row - 1 + 0.12 },
+              ext: { width: 90, height: 28 },
+              editAs: 'oneCell'
+            });
+            cell.value = '';
+            ws.getRow(hit.row).height = Math.max(ws.getRow(hit.row).height || 18, 26);
+          } catch(e) {
+            setCellPlainText(cell, '서명완료');
+          }
+        } else {
+          setCellPlainText(cell, '서명완료');
+        }
+        insertedCount++;
+      });
+    }
+
+    const out = await workbook.xlsx.writeBuffer();
+    triggerWorkbookDownload(out, `브리핑일지_${ym}_서명본.xlsx`);
+    alert(`다운로드 완료\n서명 입력: ${insertedCount}건${missingNameCount ? `\n양식에서 이름을 못 찾은 건수: ${missingNameCount}건` : ''}`);
+  } catch(err) {
+    console.error(err);
+    alert('브리핑일지 서명본 생성 중 오류가 발생했습니다. 양식 파일이 손상되었거나 브라우저가 엑셀 생성을 지원하지 않을 수 있습니다.');
+  }
+}

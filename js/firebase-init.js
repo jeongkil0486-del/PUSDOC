@@ -18,6 +18,7 @@ const scheduleMasterRef = firebase.database().ref('scheduleMaster');
 const scheduleMetaRef = firebase.database().ref('scheduleMeta');   // ✅ 업로드 이력
 const userAccountsRef = firebase.database().ref('userAccounts'); 
 const briefingConfirmationsRef = firebase.database().ref('briefingConfirmations'); 
+const briefingTemplateRef = firebase.database().ref('briefingTemplate'); 
 
 const WORKER_URL = 'https://pusdoc.jeongkil0486.workers.dev'; 
 const UPLOAD_SECRET = 'PUSDOC';                                        
@@ -34,6 +35,7 @@ let dynamicDataCache = {};
 let scheduleMasterCache = {};
 let userAccountsCache = {};
 let briefingConfirmationsCache = {};
+let briefingTemplateCache = {};
 let currentCategory = null;
 let isCategoriesLoaded   = false;
 let isDataLoaded         = false;
@@ -136,6 +138,11 @@ briefingConfirmationsRef.on('value', snapshot => {
   briefingConfirmationsCache = snapshot.val() || {};
   renderAdminAll();
   if (currentCategory && categoriesCache[currentCategory]?.type === 'briefing') renderUserFiles();
+});
+
+briefingTemplateRef.on('value', snapshot => {
+  briefingTemplateCache = snapshot.val() || {};
+  renderAdminAll();
 });
 
 

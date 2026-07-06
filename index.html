@@ -16,6 +16,7 @@
 <link class="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22PUS%20DOC%22%2C%22short_name%22%3A%22PUS%20DOC%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23f4f6fb%22%2C%22theme_color%22%3A%22%236d83ff%22%7D">
 <link rel="stylesheet" href="css/style.css">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 </head>
 <body>
 
@@ -215,6 +216,11 @@
 <div id="noticeEditorModal" class="modal-overlay hidden">
   <div class="modal-box" style="width:480px; max-width:90vw;">
     <h3 id="noticeEditorTitle">📝 새 글 작성</h3>
+
+    <div id="briefingDateWrap" class="hidden">
+      <label for="briefingDateInput">브리핑 적용 날짜</label>
+      <input type="date" id="briefingDateInput">
+    </div>
     <label for="noticeTitleInput">제목</label>
     <input type="text" id="noticeTitleInput" placeholder="제목을 입력하세요">
     <label for="noticeContentInput">내용</label>

@@ -1061,13 +1061,22 @@ async function insertSignatureImageCenteredInRange(workbook, worksheet, base64, 
   const offsetX = (box.width  - width)  / 2;
   const offsetY = (box.height - height) / 2;
 
-  /* 소수 tl.col/tl.row 방식 대신 nativeCol/nativeColOff/nativeRow/nativeRowOff를 직접 지정한다.
-     ExcelJS Anchor#set col(v) 내부는 소수의 정수부(nativeCol)에 해당하는 컬럼 1개의 폭만을
-     기준으로 소수부를 EMU로 환산하기 때문에, 병합된 여러 컬럼 전체를 기준으로 계산한
-     오프셋 비율을 소수 col에 그대로 넣으면 실제 픽셀 오프셋이 줄어들어 서명이
-     왼쪽/위로 쏠리는 문제가 발생한다(D:E 2컬럼 병합에서 offset이 약 절반으로 감소).
-     해결: offsetX/offsetY(병합 전체 픽셀 기준 중앙 오프셋)를 병합 컬럼/행을 순회하며
-     "실제로 어느 컬럼·행 안에 들어가는지" 찾고, 그 단일 컬럼·행 폭 기준으로 EMU 오프셋을 계산한다. */
+  /* anchor 방식: nativeCol/nativeColOff/nativeRow/nativeRowOff 직접 지정.
+     ─────────────────────────────────────────────────────────────────────
+     【단위 주의】
+     ExcelJS의 cell-position-xform.js는 nativeColOff/nativeRowOff 값을
+     변환 없이 그대로 xdr:colOff/xdr:rowOff XML에 기록한다.
+     Excel은 xdr:colOff/xdr:rowOff를 EMU(English Metric Units) 단위로 해석한다.
+       1 px (96 dpi) = 9525 EMU
+     따라서 nativeColOff/nativeRowOff에는 반드시 px * 9525 값을 넣어야 한다.
+     (ExcelJS Anchor#set col(v) 내부가 쓰는 charWidth*10000 스케일은 EMU가 아니므로
+      소수 col 방식이나 charWidth 비율 방식은 모두 실제 화면에서 왼쪽/위에 붙는 결과를 낸다)
+
+     nativeCol은 offsetX가 실제로 들어가는 컬럼을 특정해야 한다.
+     단, offsetX가 시작 컬럼 폭을 넘으면 다음 컬럼으로 넘어가며
+     nativeColOff는 그 컬럼 시작점 이후의 EMU 잔여 오프셋이 된다. */
+  const EMU_PER_PX = 9525;
+
   let nativeCol = mergeRange.startCol - 1; // 0-based
   let remainingOffsetXPx = offsetX;
   for (let c = mergeRange.startCol; c <= mergeRange.endCol; c++) {
@@ -1076,11 +1085,7 @@ async function insertSignatureImageCenteredInRange(workbook, worksheet, base64, 
     remainingOffsetXPx -= colPx;
     nativeCol++;
   }
-  const nativeColPixelWidth = getColumnPixelWidth(worksheet, nativeCol + 1);
-  const colObjForOffset = worksheet.getColumn(nativeCol + 1);
-  const colWidthPtForOffset = (colObjForOffset && colObjForOffset.width != null) ? colObjForOffset.width : 8.43;
-  const colUnitWidthForOffset = Math.floor(colWidthPtForOffset * 10000);
-  const nativeColOff = Math.floor((remainingOffsetXPx / nativeColPixelWidth) * colUnitWidthForOffset);
+  const nativeColOff = Math.floor(remainingOffsetXPx * EMU_PER_PX);
 
   let nativeRow = mergeRange.startRow - 1; // 0-based
   let remainingOffsetYPx = offsetY;
@@ -1090,11 +1095,7 @@ async function insertSignatureImageCenteredInRange(workbook, worksheet, base64, 
     remainingOffsetYPx -= rowPx;
     nativeRow++;
   }
-  const nativeRowPixelHeight = getRowPixelHeight(worksheet, nativeRow + 1);
-  const rowObjForOffset = worksheet.getRow(nativeRow + 1);
-  const rowHeightPtForOffset = (rowObjForOffset && rowObjForOffset.height != null) ? rowObjForOffset.height : 15;
-  const rowUnitHeightForOffset = Math.floor(rowHeightPtForOffset * 10000);
-  const nativeRowOff = Math.floor((remainingOffsetYPx / nativeRowPixelHeight) * rowUnitHeightForOffset);
+  const nativeRowOff = Math.floor(remainingOffsetYPx * EMU_PER_PX);
 
   const imgId = workbook.addImage({ base64: trimmed.base64, extension: 'png' });
   worksheet.addImage(imgId, {

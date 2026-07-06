@@ -893,13 +893,40 @@ function parseMergeRange(range) {
   };
 }
 
-function findMergeRangeForCell(worksheet, row, col) {
+function colNumberToLetter(col) {
+  let n = col;
+  let s = '';
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
+/* signatureStartCell(예: "D41")이 마스터(좌측 상단) 셀이든 아니든 상관없이,
+   그 셀이 "포함된" 병합 범위를 찾는다.
+   - 서명칸이 병합되어 있으면(예: D41:E41, H41:I41) 그 병합 범위 전체를 반환
+   - 병합되어 있지 않으면 null을 반환 (호출하는 쪽에서 단일 셀로 처리) */
+function findMergedRangeContainingCell(worksheet, cellAddress) {
+  const ref = parseCellRef(cellAddress);
+  if (!ref) return null;
   const merges = (worksheet.model && worksheet.model.merges) || [];
   for (let i = 0; i < merges.length; i++) {
     const parsed = parseMergeRange(merges[i]);
     if (!parsed) continue;
-    if (row >= parsed.startRow && row <= parsed.endRow && col >= parsed.startCol && col <= parsed.endCol) return parsed;
+    if (ref.row >= parsed.startRow && ref.row <= parsed.endRow && ref.col >= parsed.startCol && ref.col <= parsed.endCol) {
+      return parsed;
+    }
   }
+  return null;
+}
+
+/* row/col(숫자) 기준으로 병합 범위를 찾는다. 병합이 없으면 해당 셀 하나만의
+   1x1 범위를 반환한다 (= "병합 영역이 없을 때만 단일 셀 기준으로 처리"). */
+function findMergeRangeForCell(worksheet, row, col) {
+  const found = findMergedRangeContainingCell(worksheet, colNumberToLetter(col) + row);
+  if (found) return found;
   return { startRow: row, endRow: row, startCol: col, endCol: col };
 }
 
@@ -913,12 +940,20 @@ function getRowPixelHeight(worksheet, row) {
   return Math.max(18, Math.round((height != null ? height : 15) * 1.33));
 }
 
-function getRangePixelBox(worksheet, range) {
+/* 병합 범위(D:E, H:I 등) 전체의 실제 픽셀 width/height를 계산한다.
+   병합된 모든 컬럼의 너비 합, 모든 행의 높이 합을 그대로 더한 값이므로
+   "D열 너비만" 또는 "H열 너비만"이 아니라 병합된 컬럼 전체 너비가 반영된다. */
+function getMergedCellPixelBox(worksheet, mergeRange) {
   let width = 0;
   let height = 0;
-  for (let c = range.startCol; c <= range.endCol; c++) width += getColumnPixelWidth(worksheet, c);
-  for (let r = range.startRow; r <= range.endRow; r++) height += getRowPixelHeight(worksheet, r);
+  for (let c = mergeRange.startCol; c <= mergeRange.endCol; c++) width += getColumnPixelWidth(worksheet, c);
+  for (let r = mergeRange.startRow; r <= mergeRange.endRow; r++) height += getRowPixelHeight(worksheet, r);
   return { width: width, height: height };
+}
+
+/* getRangePixelBox: getMergedCellPixelBox의 이전 이름 (하위 호환용 별칭) */
+function getRangePixelBox(worksheet, range) {
+  return getMergedCellPixelBox(worksheet, range);
 }
 
 /* 서명 캔버스는 실제 서명 칸보다 훨씬 큰 빈 캔버스(예: 360x150)로 캡처되는 경우가
@@ -1014,22 +1049,24 @@ function pixelOffsetToCellFraction(worksheet, startUnit, endUnit, isColumn, pxOf
   return endUnit;
 }
 
-/* 서명 이미지를 서명 셀(또는 서명 병합 셀) 영역 "안에" 중앙 정렬로 삽입한다.
-   - 병합 영역 전체(모든 병합된 컬럼 너비 합 / 모든 병합된 행 높이 합)를
-     하나의 박스로 계산 (getRangePixelBox)
+/* 서명 이미지를 "이미 확정된 병합(또는 단일 셀) 범위" 안에 중앙 정렬로 삽입한다.
+   - mergeRange는 D:E, H:I처럼 병합된 모든 컬럼/행을 포함한 범위여야 하며,
+     이 함수는 그 범위 전체를 하나의 박스로 보고 가운데 정렬만 담당한다.
+   - 박스 크기는 getMergedCellPixelBox로 계산한 "병합된 컬럼 전체 너비 합 /
+     병합된 행 전체 높이 합" 이므로, D열 하나가 아니라 D+E 전체, H열 하나가
+     아니라 H+I 전체를 기준으로 중앙이 계산된다.
    - 서명 이미지는 캔버스 전체가 아니라 "실제로 그려진 잉크 부분"만 잘라낸 뒤
      (trimSignatureImageToInk) 그 잘라낸 이미지의 실제 가로/세로 크기를 기준으로
-     중앙 좌표를 계산한다. 캔버스 전체를 그대로 썼을 때, 캔버스 자체는 셀 중앙에
+     중앙 좌표를 계산한다. 캔버스 전체를 그대로 쓰면, 캔버스 자체는 셀 중앙에
      있어도 그 안의 서명 획은 사용자가 그린 위치(주로 좌측 상단)에 그대로 남아있어
-     셀 안에서 좌측으로 치우쳐 보이는 문제가 있었음.
+     셀 안에서 치우쳐 보이는 문제가 있었음.
    - 가로 중앙 = (박스 너비 - 이미지 너비) / 2, 세로 중앙 = (박스 높이 - 이미지 높이) / 2
    - 원본 이미지 가로세로 비율 유지 (박스보다 크면 축소만 하고 확대는 하지 않음)
    - 병합 영역 밖으로 튀어나가지 않도록 tl/br을 모두 영역 내부 좌표로 계산
    - editAs: 'twoCell' + tl/br 앵커를 사용해 엑셀의 "셀에 맞춰 이동 및 크기 조정"과
      동일하게 동작하도록 함 (열 너비/행 높이를 바꾸면 이미지도 셀을 따라간다) */
-async function insertSignatureImageCentered(workbook, worksheet, base64, row, col) {
-  const mergeRange = findMergeRangeForCell(worksheet, row, col);
-  const box = getRangePixelBox(worksheet, mergeRange); // 병합 영역 전체의 실제 픽셀 width/height
+async function insertSignatureImageCenteredInRange(workbook, worksheet, base64, mergeRange) {
+  const box = getMergedCellPixelBox(worksheet, mergeRange); // 병합 영역 전체의 실제 픽셀 width/height
   const trimmed = await trimSignatureImageToInk(base64); // 실제 서명 잉크만 잘라낸 이미지
   const natural = { width: trimmed.width, height: trimmed.height };
 
@@ -1056,6 +1093,18 @@ async function insertSignatureImageCentered(workbook, worksheet, base64, row, co
     br: { col: brCol, row: brRow },
     editAs: 'twoCell'
   });
+}
+
+/* row/col(예: signatureStartCell을 파싱한 좌표)을 받아, 그 셀이 포함된 병합
+   범위를 먼저 찾은 뒤(findMergedRangeContainingCell) insertSignatureImageCenteredInRange를
+   호출하는 래퍼. signatureStartCell이 병합의 마스터(좌측 상단) 셀이 아니어도
+   findMergedRangeContainingCell이 해당 셀을 포함하는 병합 범위를 그대로 찾아내므로
+   D:E, H:I 등 병합 범위 전체 기준으로 정확히 중앙 정렬된다.
+   병합되어 있지 않은 셀이면 그 셀 하나(1x1)만의 범위로 처리한다. */
+async function insertSignatureImageCentered(workbook, worksheet, base64, row, col) {
+  const mergeRange = findMergedRangeContainingCell(worksheet, colNumberToLetter(col) + row)
+    || { startRow: row, endRow: row, startCol: col, endCol: col };
+  await insertSignatureImageCenteredInRange(workbook, worksheet, base64, mergeRange);
 }
 
 function findEmployeeSignaturePlacement(worksheet, mappingBlocks, targetName) {

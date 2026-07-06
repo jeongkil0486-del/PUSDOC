@@ -20,6 +20,7 @@ const userAccountsRef = firebase.database().ref('userAccounts');
 const briefingsRef = firebase.database().ref('briefings');
 const briefingConfirmationsRef = firebase.database().ref('briefingConfirmations'); 
 const briefingTemplateRef = firebase.database().ref('briefingTemplate'); 
+const briefingTemplateMappingRef = firebase.database().ref('briefingTemplateMapping'); 
 
 const WORKER_URL = 'https://pusdoc.jeongkil0486.workers.dev'; 
 const UPLOAD_SECRET = 'PUSDOC';                                        
@@ -38,6 +39,7 @@ let userAccountsCache = {};
 let briefingsCache = {};
 let briefingConfirmationsCache = {};
 let briefingTemplateCache = {};
+let briefingTemplateMappingCache = {};
 let currentCategory = null;
 let isCategoriesLoaded   = false;
 let isDataLoaded         = false;
@@ -150,6 +152,11 @@ briefingConfirmationsRef.on('value', snapshot => {
 
 briefingTemplateRef.on('value', snapshot => {
   briefingTemplateCache = snapshot.val() || {};
+  renderAdminAll();
+});
+
+briefingTemplateMappingRef.on('value', snapshot => {
+  briefingTemplateMappingCache = snapshot.val() || {};
   renderAdminAll();
 });
 

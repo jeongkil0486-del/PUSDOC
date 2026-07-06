@@ -28,6 +28,39 @@ const BRIEFING_SECTIONS = [
   { key: 'forward', label: '③ 전달사항' },
   { key: 'edu', label: '④ 교육사항' }
 ];
+/* 화면(admin/employee) 섹션 키 -> Firebase 매핑 키(briefingTemplateMapping.sections) 변환 */
+const BRIEFING_SECTION_TO_MAPPING_KEY = { tw: 'tw', tas: 'tas', forward: 'notice', edu: 'education' };
+
+function colLetterToNumber(col) {
+  let n = 0;
+  const s = String(col || '').toUpperCase();
+  for (let i = 0; i < s.length; i++) n = n * 26 + (s.charCodeAt(i) - 64);
+  return n;
+}
+function parseCellRef(ref) {
+  const m = String(ref || '').trim().toUpperCase().match(/^([A-Z]+)(\d+)$/);
+  if (!m) return null;
+  return { colLetter: m[1], col: colLetterToNumber(m[1]), row: parseInt(m[2], 10) };
+}
+function normalizeBriefingName(v) {
+  return String(v || '').replace(/\s+/g, '').trim();
+}
+function dataUrlToArrayBuffer(dataUrl) {
+  const base64 = String(dataUrl || '').split(',')[1] || '';
+  const binary = atob(base64);
+  const len = binary.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+function triggerWorkbookDownload(buffer, fileName) {
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = fileName;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
 
 function getBriefingConfirmCount(dateKey) {
   return Object.keys(briefingConfirmationsCache[dateKey] || {}).length;
@@ -172,10 +205,27 @@ function renderAdminBriefingSection(section, catId) {
   const templateUpdatedAt = briefingTemplateCache && briefingTemplateCache.updatedAt
     ? ` (등록: ${escapeHtml(briefingTemplateCache.updatedAt)})` : '';
 
+  const mapping = briefingTemplateMappingCache || {};
+  const mSec = mapping.sections || {};
+  const mv = (v) => escapeHtml(v || '');
+  const mappingFieldsHtml = [
+    { key: 'dateCell', label: '날짜 셀', placeholder: 'B3', value: mapping.dateCell },
+    { key: 'tw', label: '업무 공지(TW)', placeholder: 'B8', value: mSec.tw },
+    { key: 'tas', label: '업무 공지(TAS)', placeholder: 'B14', value: mSec.tas },
+    { key: 'notice', label: '전달사항', placeholder: 'B20', value: mSec.notice },
+    { key: 'education', label: '교육사항', placeholder: 'B26', value: mSec.education },
+    { key: 'employeeNameStartCell', label: '직원 이름 시작 셀', placeholder: 'B35', value: mapping.employeeNameStartCell },
+    { key: 'signatureStartCell', label: '서명 시작 셀', placeholder: 'C35', value: mapping.signatureStartCell }
+  ].map(f => `
+    <div>
+      <label style="font-size:11px; color:#666; display:block; margin-bottom:3px;">${f.label}</label>
+      <input type="text" id="briefMap_${f.key}_${catId}" placeholder="예: ${f.placeholder}" value="${mv(f.value)}" style="width:100%; padding:6px; border:1px solid #ccc; border-radius:6px; font-size:12px; box-sizing:border-box;">
+    </div>`).join('');
+
   wrap.innerHTML = `
     <div style="background:#f8f0ff; border:1px dashed #a78bfa; border-radius:10px; padding:14px; margin-bottom:14px;">
       <div style="font-size:13px; font-weight:700; color:#8b6df8; margin-bottom:8px;">📎 브리핑 양식 등록</div>
-      <div style="font-size:11px; color:#888; margin-bottom:10px; line-height:1.6;">등록된 양식은 계속 보관되며, 필요 시 새 파일로 교체(재업로드)할 수 있습니다.</div>
+      <div style="font-size:11px; color:#888; margin-bottom:10px; line-height:1.6;">"하루 양식" 시트 1개만 등록합니다. 등록된 양식은 계속 유지되며, 새로 등록하기 전까지 동일한 양식을 사용합니다.</div>
       <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <button class="upload-btn" style="background:linear-gradient(135deg,#8b6df8,#a78bfa);" onclick="document.getElementById('briefingTemplateInput_${catId}').click()">⬆️ 양식 파일 등록</button>
         <input type="file" id="briefingTemplateInput_${catId}" accept=".xlsx,.xls" onchange="handleBriefingTemplateUpload(event)">
@@ -183,10 +233,21 @@ function renderAdminBriefingSection(section, catId) {
       </div>
     </div>
 
+    <div style="background:#eef6ff; border:1px dashed #7ea6ff; border-radius:10px; padding:14px; margin-bottom:14px;">
+      <div style="font-size:13px; font-weight:700; color:#2f6fdb; margin-bottom:8px;">🗺️ 양식 셀 매핑</div>
+      <div style="font-size:11px; color:#888; margin-bottom:10px; line-height:1.6;">등록한 양식 엑셀에서 각 항목이 들어갈 셀 주소를 입력하세요. (예: B3)</div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:8px; margin-bottom:10px;">
+        ${mappingFieldsHtml}
+      </div>
+      <button class="upload-btn" style="background:linear-gradient(135deg,#4e65df,#6d83ff);" onclick="saveBriefingTemplateMapping('${catId}')">매핑 저장</button>
+      <span id="briefMapStatus_${catId}" style="font-size:11px; color:#27ae60; margin-left:8px;"></span>
+    </div>
+
     <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
       <span style="font-size:13px; font-weight:700; color:#6d83ff;">📆 조회할 년월</span>
       <select id="adminBriefYear_${catId}" onchange="renderAdminBriefingCalendar('${catId}')" style="padding:7px 12px; border-radius:8px; border:1px solid #c5caee; font-size:14px; font-weight:600;"></select>
       <select id="adminBriefMonth_${catId}" onchange="renderAdminBriefingCalendar('${catId}')" style="padding:7px 12px; border-radius:8px; border:1px solid #c5caee; font-size:14px; font-weight:600;"></select>
+      <button class="upload-btn" id="briefDownloadBtn_${catId}" style="background:linear-gradient(135deg,#27ae60,#1e9653);" onclick="downloadBriefingMonthlyWorkbook('${catId}')">⬇️ 월별 다운로드</button>
     </div>
     <div style="font-size:11px; color:#777; margin-bottom:10px; line-height:1.5;">날짜를 클릭하면 해당 일자의 브리핑일지를 등록하거나 수정할 수 있습니다.</div>
     <div id="adminBriefCalendar_${catId}"></div>
@@ -195,6 +256,35 @@ function renderAdminBriefingSection(section, catId) {
 
   initAdminBriefingSelectors(catId);
   renderAdminBriefingCalendar(catId);
+}
+
+function saveBriefingTemplateMapping(catId) {
+  const val = (name) => document.getElementById(`briefMap_${name}_${catId}`).value.trim().toUpperCase();
+  const mapping = {
+    dateCell: val('dateCell'),
+    sections: { tw: val('tw'), tas: val('tas'), notice: val('notice'), education: val('education') },
+    employeeNameStartCell: val('employeeNameStartCell'),
+    signatureStartCell: val('signatureStartCell')
+  };
+  const cellPattern = /^[A-Z]+[0-9]+$/;
+  const allRefs = [mapping.dateCell, mapping.sections.tw, mapping.sections.tas, mapping.sections.notice, mapping.sections.education, mapping.employeeNameStartCell, mapping.signatureStartCell];
+  if (allRefs.some(v => !cellPattern.test(v))) {
+    alert('셀 주소 형식이 올바르지 않습니다. 예: B3 형식으로 모든 항목을 입력해 주세요.');
+    return;
+  }
+  briefingTemplateMappingRef.set(Object.assign({}, mapping, {
+    updatedAt: new Date().toLocaleString('ko-KR'),
+    updatedAtTs: Date.now()
+  })).then(() => {
+    const status = document.getElementById(`briefMapStatus_${catId}`);
+    if (status) {
+      status.textContent = '✅ 저장되었습니다.';
+      setTimeout(() => { const s = document.getElementById(`briefMapStatus_${catId}`); if (s) s.textContent = ''; }, 3000);
+    }
+  }).catch(err => {
+    console.error(err);
+    alert('매핑 저장 중 오류가 발생했습니다.');
+  });
 }
 
 function renderAdminBriefingCalendar(catId) {
@@ -206,6 +296,8 @@ function renderAdminBriefingCalendar(catId) {
   const year = yearSel ? parseInt(yearSel.value, 10) : now.getFullYear();
   const month = monthSel ? parseInt(monthSel.value, 10) : now.getMonth() + 1;
   adminBriefingSelectedYM[catId] = { year, month };
+  const downloadBtn = document.getElementById(`briefDownloadBtn_${catId}`);
+  if (downloadBtn && !downloadBtn.disabled) downloadBtn.textContent = `⬇️ ${month}월 다운로드`;
   const first = new Date(year, month - 1, 1);
   const lastDate = new Date(year, month, 0).getDate();
   const startDay = first.getDay();
@@ -567,6 +659,167 @@ async function confirmBriefing(dateKey) {
     alert('저장 중 오류가 발생했습니다.');
     btn.disabled = false;
     btn.textContent = '저장';
+  }
+}
+
+/* =========================================================
+   월별 다운로드 - 등록된 "하루 양식" 시트를 그대로 복사해
+   일자별 시트를 자동 생성하고, 매핑된 셀만 값을 채워넣는다.
+   (병합/서식/이미지 등 원본 서식은 절대 변경하지 않는다)
+========================================================= */
+function cloneWorksheetFull(workbook, sourceWs, newName) {
+  const newWs = workbook.addWorksheet(newName, {
+    properties: Object.assign({}, sourceWs.properties || {}),
+    pageSetup: Object.assign({}, sourceWs.pageSetup || {})
+  });
+
+  const maxCol = Math.max(sourceWs.columnCount || 0, 40);
+  for (let c = 1; c <= maxCol; c++) {
+    const srcCol = sourceWs.getColumn(c);
+    if (srcCol && srcCol.width) newWs.getColumn(c).width = srcCol.width;
+  }
+
+  const maxRow = Math.max(sourceWs.rowCount || 0, 60);
+  for (let r = 1; r <= maxRow; r++) {
+    const srcRow = sourceWs.getRow(r);
+    const dstRow = newWs.getRow(r);
+    if (srcRow.height) dstRow.height = srcRow.height;
+    const colCount = Math.max(srcRow.cellCount || 0, maxCol);
+    for (let c = 1; c <= colCount; c++) {
+      const srcCell = srcRow.getCell(c);
+      const dstCell = dstRow.getCell(c);
+      if (srcCell.value !== null && srcCell.value !== undefined && srcCell.value !== '') {
+        dstCell.value = srcCell.value;
+      }
+      if (srcCell.style) {
+        try { dstCell.style = JSON.parse(JSON.stringify(srcCell.style)); } catch (e) { /* 스타일 복사 실패 시 무시 */ }
+      }
+    }
+    if (dstRow.commit) dstRow.commit();
+  }
+
+  const merges = (sourceWs.model && sourceWs.model.merges) || [];
+  merges.forEach(range => { try { newWs.mergeCells(range); } catch (e) { /* 이미 병합된 셀 등 무시 */ } });
+
+  try {
+    const images = sourceWs.getImages ? sourceWs.getImages() : [];
+    images.forEach(img => {
+      try { newWs.addImage(img.imageId, img.range); } catch (e) { /* 이미지 복사 실패 시 무시 */ }
+    });
+  } catch (e) { /* getImages 미지원 환경 등 무시 */ }
+
+  return newWs;
+}
+
+function findEmployeeRowInColumn(worksheet, startRow, col, targetName, maxScan) {
+  const limit = startRow + (maxScan || 200);
+  for (let r = startRow; r <= limit; r++) {
+    const cellVal = worksheet.getCell(r, col).value;
+    let text = '';
+    if (cellVal && typeof cellVal === 'object') {
+      text = cellVal.text || cellVal.result || (cellVal.richText ? cellVal.richText.map(x => x.text).join('') : '') || '';
+    } else {
+      text = cellVal || '';
+    }
+    if (normalizeBriefingName(text) === targetName) return r;
+  }
+  return null;
+}
+
+async function downloadBriefingMonthlyWorkbook(catId) {
+  if (typeof ExcelJS === 'undefined') { alert('ExcelJS 라이브러리가 로드되지 않았습니다. 인터넷 연결을 확인해 주세요.'); return; }
+  if (!briefingTemplateCache || !briefingTemplateCache.dataUrl) { alert('먼저 "브리핑 양식 등록"에서 양식 파일을 등록해 주세요.'); return; }
+
+  const mapping = briefingTemplateMappingCache;
+  const mappingComplete = mapping && mapping.dateCell && mapping.employeeNameStartCell && mapping.signatureStartCell
+    && mapping.sections && mapping.sections.tw && mapping.sections.tas && mapping.sections.notice && mapping.sections.education;
+  if (!mappingComplete) { alert('먼저 "양식 셀 매핑"의 모든 항목을 입력하고 저장해 주세요.'); return; }
+
+  const dateCellRef = parseCellRef(mapping.dateCell);
+  const sectionRefs = {
+    tw: parseCellRef(mapping.sections.tw),
+    tas: parseCellRef(mapping.sections.tas),
+    notice: parseCellRef(mapping.sections.notice),
+    education: parseCellRef(mapping.sections.education)
+  };
+  const nameStartRef = parseCellRef(mapping.employeeNameStartCell);
+  const sigStartRef = parseCellRef(mapping.signatureStartCell);
+  if (!dateCellRef || !nameStartRef || !sigStartRef || Object.keys(sectionRefs).some(k => !sectionRefs[k])) {
+    alert('매핑된 셀 주소 형식이 올바르지 않습니다. "양식 셀 매핑"을 다시 확인해 주세요.');
+    return;
+  }
+
+  const now = new Date();
+  const ym = adminBriefingSelectedYM[catId] || { year: now.getFullYear(), month: now.getMonth() + 1 };
+  const year = ym.year, month = ym.month;
+  const lastDate = new Date(year, month, 0).getDate();
+
+  const downloadBtn = document.getElementById(`briefDownloadBtn_${catId}`);
+  if (downloadBtn) { downloadBtn.disabled = true; downloadBtn.textContent = '생성 중...'; }
+
+  try {
+    const templateBuffer = dataUrlToArrayBuffer(briefingTemplateCache.dataUrl);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(templateBuffer);
+    const sourceWs = workbook.worksheets[0];
+    if (!sourceWs) throw new Error('등록된 양식에서 시트를 찾을 수 없습니다.');
+    const sourceSheetId = sourceWs.id;
+
+    let signatureInsertCount = 0;
+    let nameNotFoundCount = 0;
+
+    for (let day = 1; day <= lastDate; day++) {
+      const dateKey = makeBriefingDateKey(year, month, day);
+      const sheetName = `${month}월 ${day}일`;
+      const ws = cloneWorksheetFull(workbook, sourceWs, sheetName);
+
+      ws.getCell(dateCellRef.row, dateCellRef.col).value = dateKey;
+
+      const item = briefingsCache[dateKey] || null;
+      if (item && item.sections) {
+        BRIEFING_SECTIONS.forEach(s => {
+          const mapKey = BRIEFING_SECTION_TO_MAPPING_KEY[s.key];
+          const sec = item.sections[s.key];
+          if (sec && sec.useTemplate === false && sec.content) {
+            const ref = sectionRefs[mapKey];
+            ws.getCell(ref.row, ref.col).value = sec.content;
+          }
+        });
+      }
+
+      const confirms = briefingConfirmationsCache[dateKey] || {};
+      Object.keys(confirms).forEach(empId => {
+        const c = confirms[empId] || {};
+        const targetName = normalizeBriefingName(c.empName || (userAccountsCache[empId] && userAccountsCache[empId].empName) || '');
+        if (!targetName) return;
+        const foundRow = findEmployeeRowInColumn(ws, nameStartRef.row, nameStartRef.col, targetName, 200);
+        if (foundRow == null) { nameNotFoundCount++; return; }
+        const targetRow = sigStartRef.row + (foundRow - nameStartRef.row);
+        if (c.signature && /^data:image\/png;base64,/.test(c.signature)) {
+          try {
+            const imgId = workbook.addImage({ base64: c.signature, extension: 'png' });
+            ws.addImage(imgId, {
+              tl: { col: sigStartRef.col - 1 + 0.08, row: targetRow - 1 + 0.12 },
+              ext: { width: 90, height: 28 },
+              editAs: 'oneCell'
+            });
+            ws.getCell(targetRow, sigStartRef.col).value = '';
+            signatureInsertCount++;
+          } catch (e) { console.error(e); }
+        }
+      });
+    }
+
+    workbook.removeWorksheet(sourceSheetId);
+
+    const out = await workbook.xlsx.writeBuffer();
+    triggerWorkbookDownload(out, `브리핑일지_${year}년_${month}월.xlsx`);
+    alert(`✅ ${year}년 ${month}월 브리핑일지(${lastDate}개 시트)가 생성되었습니다.\n서명 삽입: ${signatureInsertCount}건${nameNotFoundCount ? `\n양식에서 이름을 찾지 못한 건수: ${nameNotFoundCount}건` : ''}`);
+  } catch (err) {
+    console.error(err);
+    alert('월별 다운로드 생성 중 오류가 발생했습니다. 양식/매핑 설정을 확인해 주세요.');
+  } finally {
+    if (downloadBtn) { downloadBtn.disabled = false; downloadBtn.textContent = `⬇️ ${month}월 다운로드`; }
   }
 }
 

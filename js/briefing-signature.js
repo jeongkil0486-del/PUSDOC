@@ -854,6 +854,14 @@ async function downloadBriefingMonthlyWorkbook(catId) {
   }
 }
 
+window.PUS_BRIEFING_SIGNATURE_LOADED = true;
+if (typeof renderAdminAll === 'function') {
+  const adminScreen = document.getElementById('adminScreen');
+  if (adminScreen && !adminScreen.classList.contains('hidden')) {
+    renderAdminAll();
+  }
+}
+
 /* 팝업 문자열 보정 오버라이드 */
 function ensureAdminBriefingEditor() {
   let modal = document.getElementById('adminBriefingEditorModal');

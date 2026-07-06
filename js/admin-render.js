@@ -134,7 +134,16 @@ function renderAdminAll() {
 
     if(cat.type === 'briefing') {
       container.appendChild(section);
-      if(typeof renderAdminBriefingSection === 'function') renderAdminBriefingSection(section, catId);
+      if(typeof renderAdminBriefingSection === 'function') {
+        try {
+          renderAdminBriefingSection(section, catId);
+        } catch (err) {
+          console.error('Briefing admin render failed:', err);
+          section.insertAdjacentHTML('beforeend', '<div class="empty-msg" style="background:#fff5f5; color:#de5246; text-align:left;">브리핑일지 화면을 불러오는 중 오류가 발생했습니다. 콘솔 오류를 확인해 주세요.</div>');
+        }
+      } else {
+        section.insertAdjacentHTML('beforeend', '<div class="empty-msg" style="background:#f8f9fd; text-align:left;">브리핑일지 UI를 불러오는 중입니다. 잠시 후 자동으로 다시 표시됩니다.</div>');
+      }
       return;
     }
 

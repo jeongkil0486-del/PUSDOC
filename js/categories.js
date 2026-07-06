@@ -49,6 +49,7 @@ function saveCategory() {
     let icon = '📁';
     if(type === 'board') icon = '📝';
     if(type === 'schedule') icon = '📅';
+    if(type === 'briefing') icon = '🛫';
     if(type === 'link') icon = '🔗';
     if(type === 'grievance') icon = '🔒';
     const order = Object.keys(categoriesCache).length + 1;

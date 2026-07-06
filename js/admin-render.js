@@ -137,6 +137,11 @@ function renderAdminAll() {
 
     if(cat.type === 'board') {
       row.innerHTML = `<button class="upload-btn" onclick="openBoardEditor('${catId}')">새 글 작성</button>`;
+    } else if(cat.type === 'briefing') {
+      row.innerHTML = `
+        <button class="upload-btn" onclick="openBoardEditor('${catId}')">브리핑일지 작성</button>
+        <button class="upload-btn" style="background:linear-gradient(135deg,#34c98f,#27ae60);" onclick="downloadBriefingMonthlyExcel('${catId}')">월별 확인명단 엑셀 다운로드</button>
+      `;
     } else if(cat.type === 'link') {
       row.innerHTML = `<button class="upload-btn" style="background:linear-gradient(135deg,#ff9f43,#ff793f);" onclick="openLinkEditor('${catId}')">🔗 링크 추가</button>`;
     } else {
@@ -176,7 +181,7 @@ function renderAdminAll() {
     items.forEach(item => {
       const li = document.createElement('li');
       li.className = 'file-item';
-      if(cat.type === 'board') {
+      if(cat.type === 'board' || cat.type === 'briefing') {
         let imgPreviewHtml = "";
         if(item.imageUrl) {
           imgPreviewHtml = `<div style="margin-top:10px; display:block;"><img src="${item.imageUrl}" style="max-width:200px; max-height:140px; border-radius:6px; border:1px solid #ddd; box-shadow:0 3px 10px rgba(0,0,0,0.1); object-fit:cover; cursor:zoom-in;" onclick="openFullscreenImage('${item.imageUrl}'); event.stopPropagation();"></div>`;
@@ -185,8 +190,9 @@ function renderAdminAll() {
         li.innerHTML = `
           <div class="fname" style="cursor:pointer; display:block; width:100%;" onclick="viewBoardItem('${catId}','${item.id}')">
             <div>
-              📝 <span class="label" style="font-weight:600; font-size:14px; color:#2b2f3e;">${escapeHtml(item.title)}</span>
+              ${cat.type === 'briefing' ? '🛫' : '📝'} <span class="label" style="font-weight:600; font-size:14px; color:#2b2f3e;">${escapeHtml(item.title)}</span>
               <span style="color:#aaa; font-size:11px; margin-left:8px;">${item.date}</span>
+              ${cat.type === 'briefing' ? `<span style="color:#27ae60; font-size:11px; margin-left:8px; font-weight:700;">확인 ${getBriefingConfirmCount(item.id)}명</span>` : ''}
             </div>
             ${imgPreviewHtml}
           </div>

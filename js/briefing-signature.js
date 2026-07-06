@@ -47,7 +47,7 @@ function deepClonePlain(value) {
   return JSON.parse(JSON.stringify(value));
 }
 function getBriefingTemplateMappingNormalized() {
-  const mapping = getBriefingTemplateMappingNormalized();
+  const mapping = briefingTemplateMappingCache || {};
   const sections = mapping.sections || {};
   const block1 = (mapping.employeeBlocks && mapping.employeeBlocks.block1) || {};
   const block2 = (mapping.employeeBlocks && mapping.employeeBlocks.block2) || {};

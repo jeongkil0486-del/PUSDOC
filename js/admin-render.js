@@ -92,7 +92,7 @@ function renderAdminAll() {
         <div style="display:flex; gap:6px; align-items:center;">
           <button class="order-btn" onclick="moveCategoryOrder('${catId}',-1)" ${isFirst?'disabled':''}>▲</button>
           <button class="order-btn" onclick="moveCategoryOrder('${catId}',1)"  ${isLast ?'disabled':''}>▼</button>
-          ${(cat.type !== 'schedule' && cat.type !== 'grievance') ? `<button class="toggle-minimize-btn" onclick="toggleMinimizeSection('${catId}')">${isFileListMinimizedMap[catId] ? '📁 목록 펼치기' : '📂 목록 접기'}</button>` : ''}
+          ${(cat.type !== 'schedule' && cat.type !== 'grievance' && cat.type !== 'briefing') ? `<button class="toggle-minimize-btn" onclick="toggleMinimizeSection('${catId}')">${isFileListMinimizedMap[catId] ? '📁 목록 펼치기' : '📂 목록 접기'}</button>` : ''}
           <button class="delete-category-btn" onclick="deleteCategory('${catId}')">❌ 항목 삭제</button>
         </div>
       </div>
@@ -132,20 +132,17 @@ function renderAdminAll() {
       return;
     }
 
+    if(cat.type === 'briefing') {
+      if(typeof renderAdminBriefingSection === 'function') renderAdminBriefingSection(section, catId);
+      container.appendChild(section);
+      return;
+    }
+
     const row = document.createElement('div');
     row.className = 'upload-row';
 
     if(cat.type === 'board') {
       row.innerHTML = `<button class="upload-btn" onclick="openBoardEditor('${catId}')">새 글 작성</button>`;
-    } else if(cat.type === 'briefing') {
-      const templateName = briefingTemplateCache && briefingTemplateCache.fileName ? briefingTemplateCache.fileName : '등록된 월별 양식 없음';
-      row.innerHTML = `
-        <button class="upload-btn" style="background:linear-gradient(135deg,#8b6df8,#a78bfa);" onclick="document.getElementById('briefingWorkbookInput_${catId}').click()">일별 시트 브리핑 엑셀 업로드</button>
-        <input type="file" id="briefingWorkbookInput_${catId}" accept=".xlsx,.xls" onchange="handleBriefingWorkbookUpload(event,'${catId}')">
-        <button class="upload-btn" onclick="openBoardEditor('${catId}')">단일 일자 수기 작성</button>
-        <button class="upload-btn" style="background:linear-gradient(135deg,#34c98f,#27ae60);" onclick="downloadBriefingTemplateExcel('${catId}')">월별 서명본 엑셀 다운로드</button>
-        <span class="upload-status">현재 등록 양식: ${escapeHtml(templateName)}</span>
-      `;
     } else if(cat.type === 'link') {
       row.innerHTML = `<button class="upload-btn" style="background:linear-gradient(135deg,#ff9f43,#ff793f);" onclick="openLinkEditor('${catId}')">🔗 링크 추가</button>`;
     } else {
@@ -185,7 +182,7 @@ function renderAdminAll() {
     items.forEach(item => {
       const li = document.createElement('li');
       li.className = 'file-item';
-      if(cat.type === 'board' || cat.type === 'briefing') {
+      if(cat.type === 'board') {
         let imgPreviewHtml = "";
         if(item.imageUrl) {
           imgPreviewHtml = `<div style="margin-top:10px; display:block;"><img src="${item.imageUrl}" style="max-width:200px; max-height:140px; border-radius:6px; border:1px solid #ddd; box-shadow:0 3px 10px rgba(0,0,0,0.1); object-fit:cover; cursor:zoom-in;" onclick="openFullscreenImage('${item.imageUrl}'); event.stopPropagation();"></div>`;
@@ -194,9 +191,8 @@ function renderAdminAll() {
         li.innerHTML = `
           <div class="fname" style="cursor:pointer; display:block; width:100%;" onclick="viewBoardItem('${catId}','${item.id}')">
             <div>
-              ${cat.type === 'briefing' ? '🛫' : '📝'} <span class="label" style="font-weight:600; font-size:14px; color:#2b2f3e;">${escapeHtml(item.title)}</span>
+              📝 <span class="label" style="font-weight:600; font-size:14px; color:#2b2f3e;">${escapeHtml(item.title)}</span>
               <span style="color:#aaa; font-size:11px; margin-left:8px;">${item.date}</span>
-              ${cat.type === 'briefing' ? `<span style="color:#27ae60; font-size:11px; margin-left:8px; font-weight:700;">확인 ${getBriefingConfirmCount(item.id)}명</span>` : ''}
             </div>
             ${imgPreviewHtml}
           </div>

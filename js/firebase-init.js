@@ -17,6 +17,7 @@ const dataRef = firebase.database().ref('dynamicData');
 const scheduleMasterRef = firebase.database().ref('scheduleMaster'); 
 const scheduleMetaRef = firebase.database().ref('scheduleMeta');   // ✅ 업로드 이력
 const userAccountsRef = firebase.database().ref('userAccounts'); 
+const briefingsRef = firebase.database().ref('briefings');
 const briefingConfirmationsRef = firebase.database().ref('briefingConfirmations'); 
 const briefingTemplateRef = firebase.database().ref('briefingTemplate'); 
 
@@ -34,6 +35,7 @@ let categoriesCache = {};
 let dynamicDataCache = {};
 let scheduleMasterCache = {};
 let userAccountsCache = {};
+let briefingsCache = {};
 let briefingConfirmationsCache = {};
 let briefingTemplateCache = {};
 let currentCategory = null;
@@ -132,6 +134,12 @@ userAccountsRef.on('value', snapshot => {
 
 scheduleMetaRef.on('value', snapshot => {
   renderAdminUploadHistory(snapshot.val() || {});
+});
+
+briefingsRef.on('value', snapshot => {
+  briefingsCache = snapshot.val() || {};
+  renderAdminAll();
+  if (currentCategory && categoriesCache[currentCategory]?.type === 'briefing') renderUserFiles();
 });
 
 briefingConfirmationsRef.on('value', snapshot => {

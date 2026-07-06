@@ -18,12 +18,10 @@ messaging.onBackgroundMessage(function(payload) {
   const title = payload.notification?.title || 'PUS DOC';
   const body  = payload.notification?.body  || '새 알림이 있습니다.';
 
-  const ICON = 'data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 180 180%27%3E%3Cdefs%3E%3ClinearGradient id=%27g%27 x1=%270%27 y1=%270%27 x2=%271%27 y2=%271%27%3E%3Cstop offset=%270%27 stop-color=%27%236d83ff%27/%3E%3Cstop offset=%271%27 stop-color=%27%23a78bfa%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%27180%27 height=%27180%27 rx=%2736%27 fill=%27url(%23g)%27/%3E%3Ctext x=%2790%27 y=%27112%27 font-size=%2748%27 font-weight=%27800%27 fill=%27white%27 text-anchor=%27middle%27 font-family=%27Arial%27%3EPUS%3C/text%3E%3C/svg%3E';
-
   self.registration.showNotification(title, {
     body,
-    icon: ICON,
-    badge: ICON,
+    icon: '/icon.png',
+    badge: '/icon.png',
     vibrate: [200, 100, 200, 100, 200],
     tag: 'pusdoc-push',
     renotify: true,

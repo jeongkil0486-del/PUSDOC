@@ -1029,69 +1029,93 @@ function trimSignatureImageToInk(base64) {
   return promise;
 }
 
-/* 서명 병합 영역 안의 픽셀 오프셋(0 = 영역의 왼쪽/위쪽 끝)을,
-   해당 영역 내부의 "몇 번째 컬럼/행의 몇 % 지점"인지를 나타내는
-   소수 컬럼/행 좌표로 변환한다. ExcelJS의 twoCellAnchor(tl/br)는
-   이 소수 좌표 방식으로 앵커를 지정해야 셀 경계가 기준이 되어,
-   나중에 열 너비나 행 높이가 바뀌어도 이미지가 셀 영역을 따라간다. */
-function pixelOffsetToCellFraction(worksheet, startUnit, endUnit, isColumn, pxOffset) {
-  let remaining = Math.max(0, pxOffset);
-  let unit = startUnit;
-  while (unit <= endUnit) {
-    const size = isColumn ? getColumnPixelWidth(worksheet, unit) : getRowPixelHeight(worksheet, unit);
-    if (remaining <= size || unit === endUnit) {
-      const frac = size > 0 ? Math.min(1, Math.max(0, remaining / size)) : 0;
-      return (unit - 1) + frac;
-    }
-    remaining -= size;
-    unit++;
-  }
-  return endUnit;
-}
-
 /* 서명 이미지를 "이미 확정된 병합(또는 단일 셀) 범위" 안에 중앙 정렬로 삽입한다.
-   - mergeRange는 D:E, H:I처럼 병합된 모든 컬럼/행을 포함한 범위여야 하며,
-     이 함수는 그 범위 전체를 하나의 박스로 보고 가운데 정렬만 담당한다.
-   - 박스 크기는 getMergedCellPixelBox로 계산한 "병합된 컬럼 전체 너비 합 /
-     병합된 행 전체 높이 합" 이므로, D열 하나가 아니라 D+E 전체, H열 하나가
-     아니라 H+I 전체를 기준으로 중앙이 계산된다.
-   - 서명 이미지는 캔버스 전체가 아니라 "실제로 그려진 잉크 부분"만 잘라낸 뒤
-     (trimSignatureImageToInk) 그 잘라낸 이미지의 실제 가로/세로 크기를 기준으로
-     중앙 좌표를 계산한다. 캔버스 전체를 그대로 쓰면, 캔버스 자체는 셀 중앙에
-     있어도 그 안의 서명 획은 사용자가 그린 위치(주로 좌측 상단)에 그대로 남아있어
-     셀 안에서 치우쳐 보이는 문제가 있었음.
-   - 가로 중앙 = (박스 너비 - 이미지 너비) / 2, 세로 중앙 = (박스 높이 - 이미지 높이) / 2
-   - 원본 이미지 가로세로 비율 유지 (박스보다 크면 축소만 하고 확대는 하지 않음)
-   - 병합 영역 밖으로 튀어나가지 않도록 tl/br을 모두 영역 내부 좌표로 계산
-   - editAs: 'twoCell' + tl/br 앵커를 사용해 엑셀의 "셀에 맞춰 이동 및 크기 조정"과
-     동일하게 동작하도록 함 (열 너비/행 높이를 바꾸면 이미지도 셀을 따라간다) */
+   ─────────────────────────────────────────────────────────────────────────────
+   배치 방식: tl + ext + oneCell
+   이전에 사용하던 tl/br + twoCell 방식은 브라우저 ExcelJS에서 소수 행/열 좌표를
+   EMU(English Metric Units)로 변환하는 과정에서 오차가 발생해, 실제 파일을 열었을
+   때 서명이 셀 좌측 상단에 작게 붙는 문제가 있었다.
+   tl + ext 방식은 "시작 좌표(tl)는 행/열 단위 소수로, 이미지 크기는 픽셀(ext)로"
+   직접 지정하므로 좌표 변환 오차 없이 의도한 위치에 정확히 배치된다.
+
+   크기 결정: 박스의 75%(가로) × 65%(세로) 를 상한선으로 두고,
+   잉크 트리밍된 서명 이미지를 그 안에 비율 유지로 맞춘다.
+   (확대/축소 모두 허용 — 서명이 작아도 읽기 좋게 키우고,
+    서명이 커도 박스 안에 맞게 줄인다)
+   ─────────────────────────────────────────────────────────────────────────────*/
 async function insertSignatureImageCenteredInRange(workbook, worksheet, base64, mergeRange) {
-  const box = getMergedCellPixelBox(worksheet, mergeRange); // 병합 영역 전체의 실제 픽셀 width/height
-  const trimmed = await trimSignatureImageToInk(base64); // 실제 서명 잉크만 잘라낸 이미지
-  const natural = { width: trimmed.width, height: trimmed.height };
+  const box = getMergedCellPixelBox(worksheet, mergeRange); // 병합 전체 픽셀 박스
+  const trimmed = await trimSignatureImageToInk(base64);   // 잉크 기준 트리밍된 이미지
 
   const paddingX = 6;
-  const paddingY = 4;
-  const maxWidth = Math.max(10, box.width - paddingX * 2);
-  const maxHeight = Math.max(10, box.height - paddingY * 2);
-  const scale = Math.min(maxWidth / natural.width, maxHeight / natural.height, 1); // 비율 유지, 축소만 허용
-  const width = Math.max(10, natural.width * scale);
-  const height = Math.max(10, natural.height * scale);
+  const paddingY = 3;
+  const targetMaxWidth  = box.width  - paddingX * 2;
+  const targetMaxHeight = box.height - paddingY * 2;
 
-  // 병합 영역 박스 안에서 가로/세로 정중앙이 되는 오프셋
-  const offsetXPx = Math.max(0, (box.width - width) / 2);
-  const offsetYPx = Math.max(0, (box.height - height) / 2);
+  // 확대·축소 모두 허용, 비율 유지
+  const scale  = Math.min(targetMaxWidth / trimmed.width, targetMaxHeight / trimmed.height);
+  const width  = trimmed.width  * scale;
+  const height = trimmed.height * scale;
 
-  const tlCol = pixelOffsetToCellFraction(worksheet, mergeRange.startCol, mergeRange.endCol, true, offsetXPx);
-  const tlRow = pixelOffsetToCellFraction(worksheet, mergeRange.startRow, mergeRange.endRow, false, offsetYPx);
-  const brCol = pixelOffsetToCellFraction(worksheet, mergeRange.startCol, mergeRange.endCol, true, offsetXPx + width);
-  const brRow = pixelOffsetToCellFraction(worksheet, mergeRange.startRow, mergeRange.endRow, false, offsetYPx + height);
+  // 병합 영역 박스 안에서 가로/세로 정중앙 오프셋 (픽셀)
+  const offsetX = (box.width  - width)  / 2;
+  const offsetY = (box.height - height) / 2;
+
+  /* 소수 tl.col/tl.row 방식 대신 nativeCol/nativeColOff/nativeRow/nativeRowOff를 직접 지정한다.
+     ExcelJS Anchor#set col(v) 내부는 소수의 정수부(nativeCol)에 해당하는 컬럼 1개의 폭만을
+     기준으로 소수부를 EMU로 환산하기 때문에, 병합된 여러 컬럼 전체를 기준으로 계산한
+     오프셋 비율을 소수 col에 그대로 넣으면 실제 픽셀 오프셋이 줄어들어 서명이
+     왼쪽/위로 쏠리는 문제가 발생한다(D:E 2컬럼 병합에서 offset이 약 절반으로 감소).
+     해결: offsetX/offsetY(병합 전체 픽셀 기준 중앙 오프셋)를 병합 컬럼/행을 순회하며
+     "실제로 어느 컬럼·행 안에 들어가는지" 찾고, 그 단일 컬럼·행 폭 기준으로 EMU 오프셋을 계산한다. */
+  let nativeCol = mergeRange.startCol - 1; // 0-based
+  let remainingOffsetXPx = offsetX;
+  for (let c = mergeRange.startCol; c <= mergeRange.endCol; c++) {
+    const colPx = getColumnPixelWidth(worksheet, c);
+    if (remainingOffsetXPx < colPx || c === mergeRange.endCol) break;
+    remainingOffsetXPx -= colPx;
+    nativeCol++;
+  }
+  const nativeColPixelWidth = getColumnPixelWidth(worksheet, nativeCol + 1);
+  const colObjForOffset = worksheet.getColumn(nativeCol + 1);
+  const colWidthPtForOffset = (colObjForOffset && colObjForOffset.width != null) ? colObjForOffset.width : 8.43;
+  const colUnitWidthForOffset = Math.floor(colWidthPtForOffset * 10000);
+  const nativeColOff = Math.floor((remainingOffsetXPx / nativeColPixelWidth) * colUnitWidthForOffset);
+
+  let nativeRow = mergeRange.startRow - 1; // 0-based
+  let remainingOffsetYPx = offsetY;
+  for (let r = mergeRange.startRow; r <= mergeRange.endRow; r++) {
+    const rowPx = getRowPixelHeight(worksheet, r);
+    if (remainingOffsetYPx < rowPx || r === mergeRange.endRow) break;
+    remainingOffsetYPx -= rowPx;
+    nativeRow++;
+  }
+  const nativeRowPixelHeight = getRowPixelHeight(worksheet, nativeRow + 1);
+  const rowObjForOffset = worksheet.getRow(nativeRow + 1);
+  const rowHeightPtForOffset = (rowObjForOffset && rowObjForOffset.height != null) ? rowObjForOffset.height : 15;
+  const rowUnitHeightForOffset = Math.floor(rowHeightPtForOffset * 10000);
+  const nativeRowOff = Math.floor((remainingOffsetYPx / nativeRowPixelHeight) * rowUnitHeightForOffset);
 
   const imgId = workbook.addImage({ base64: trimmed.base64, extension: 'png' });
   worksheet.addImage(imgId, {
-    tl: { col: tlCol, row: tlRow },
-    br: { col: brCol, row: brRow },
-    editAs: 'twoCell'
+    tl: { nativeCol: nativeCol, nativeColOff: nativeColOff, nativeRow: nativeRow, nativeRowOff: nativeRowOff },
+    ext: { width: width, height: height },
+    editAs: 'oneCell'
+  });
+
+  console.log('[SIGNATURE DEBUG]', {
+    mergeRange,
+    box,
+    trimmedWidth:  trimmed.width,
+    trimmedHeight: trimmed.height,
+    width,
+    height,
+    offsetX,
+    offsetY,
+    nativeCol,
+    nativeColOff,
+    nativeRow,
+    nativeRowOff
   });
 }
 

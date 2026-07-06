@@ -21,6 +21,14 @@ function makeBriefingDateKey(year, month, day) {
   return `${year}-${pad2(month)}-${pad2(day)}`;
 }
 
+/* 브리핑일지 4개 고정 섹션 */
+const BRIEFING_SECTIONS = [
+  { key: 'tw', label: '① 업무 공지 (TW)' },
+  { key: 'tas', label: '② 업무 공지 (TAS)' },
+  { key: 'forward', label: '③ 전달사항' },
+  { key: 'edu', label: '④ 교육사항' }
+];
+
 function getBriefingConfirmCount(dateKey) {
   return Object.keys(briefingConfirmationsCache[dateKey] || {}).length;
 }
@@ -34,7 +42,7 @@ function isBriefingConfirmed(dateKey) {
 ========================================================= */
 let signaturePadRegistry = {};
 
-function setupSignatureCanvasEl(canvasId) {
+function setupSignatureCanvasEl(canvasId, onStroke) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
   if (signaturePadRegistry[canvasId] && signaturePadRegistry[canvasId].initialized) return;
@@ -45,7 +53,7 @@ function setupSignatureCanvasEl(canvasId) {
   ctx.lineJoin = 'round';
   ctx.strokeStyle = '#111827';
 
-  const state = { drawing: false, hasStroke: false, initialized: true };
+  const state = { drawing: false, hasStroke: false, initialized: true, onStroke: onStroke || null };
 
   function pos(evt) {
     const rect = canvas.getBoundingClientRect();
@@ -59,6 +67,7 @@ function setupSignatureCanvasEl(canvasId) {
     evt.preventDefault();
     state.drawing = true;
     state.hasStroke = true;
+    if (state.onStroke) state.onStroke();
     const p = pos(evt);
     ctx.beginPath();
     ctx.moveTo(p.x, p.y);
@@ -233,14 +242,25 @@ function ensureAdminBriefingEditor() {
   modal = document.createElement('div');
   modal.id = 'adminBriefingEditorModal';
   modal.className = 'modal-overlay hidden';
+
+  const sectionsHtml = BRIEFING_SECTIONS.map(s => `
+    <div style="margin-bottom:14px; border:1px solid #eef0fa; border-radius:10px; padding:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
+        <label style="font-weight:700; font-size:13px; color:#2b2f3e; margin:0;">${s.label}</label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#666; font-weight:600; cursor:pointer; margin:0;">
+          <input type="checkbox" id="adminBriefSection_${s.key}_useTemplate" checked onchange="toggleAdminBriefingSectionEditable('${s.key}')" style="width:auto; margin:0;">
+          양식 내용 그대로 사용
+        </label>
+      </div>
+      <textarea id="adminBriefSection_${s.key}_content" placeholder="${s.label} 내용을 입력하세요" disabled
+        style="width:100%; min-height:80px; padding:8px; border:1px solid #ddd; border-radius:8px; font-size:13px; resize:vertical; font-family:inherit; background:#f4f4f7;"></textarea>
+    </div>`).join('');
+
   modal.innerHTML = `
-    <div class="modal-box" style="width:560px; max-width:92vw;">
+    <div class="modal-box" style="width:600px; max-width:94vw; max-height:90vh; overflow-y:auto;">
       <h3 id="adminBriefingEditorTitle">브리핑일지 등록</h3>
-      <label for="adminBriefingTitleInput">제목</label>
-      <input type="text" id="adminBriefingTitleInput" placeholder="예: 2026-07-06 브리핑일지">
-      <label for="adminBriefingContentInput">내용</label>
-      <textarea id="adminBriefingContentInput" placeholder="브리핑 내용을 입력하세요"
-        style="width:100%; min-height:200px; padding:10px; border:1px solid #ddd; border-radius:8px; font-size:14px; margin-bottom:14px; resize:vertical; font-family:inherit;"></textarea>
+      <div style="font-size:11px; color:#888; margin-bottom:14px; line-height:1.5;">각 항목별로 "양식 내용 그대로 사용"에 체크되어 있으면 기존 양식 내용을 그대로 사용합니다. 체크를 해제하고 직접 입력하면 해당 내용으로 덮어씁니다.</div>
+      ${sectionsHtml}
       <div class="modal-actions">
         <button class="modal-cancel" onclick="closeAdminBriefingEditor()">취소</button>
         <button class="modal-confirm" onclick="saveAdminBriefing()">저장</button>
@@ -248,6 +268,14 @@ function ensureAdminBriefingEditor() {
     </div>`;
   document.body.appendChild(modal);
   return modal;
+}
+
+function toggleAdminBriefingSectionEditable(key) {
+  const checkbox = document.getElementById(`adminBriefSection_${key}_useTemplate`);
+  const textarea = document.getElementById(`adminBriefSection_${key}_content`);
+  if (!checkbox || !textarea) return;
+  textarea.disabled = checkbox.checked;
+  textarea.style.background = checkbox.checked ? '#f4f4f7' : '#fff';
 }
 
 let activeAdminBriefingCatId = null;
@@ -258,10 +286,22 @@ function openAdminBriefingEditor(catId, dateKey) {
   activeAdminBriefingDateKey = dateKey;
   const modal = ensureAdminBriefingEditor();
   const existing = briefingsCache[dateKey] || null;
+  const existingSections = existing && existing.sections ? existing.sections : null;
+  // 구버전(제목/내용 단일 구조) 데이터 호환: 전달사항 섹션에 옮겨서 보여줌
+  const legacyContent = existing && !existingSections && existing.content ? existing.content : '';
 
   document.getElementById('adminBriefingEditorTitle').textContent = `🛫 ${dateKey} 브리핑일지 ${existing ? '수정' : '등록'}`;
-  document.getElementById('adminBriefingTitleInput').value = existing ? (existing.title || '') : `${dateKey} 브리핑일지`;
-  document.getElementById('adminBriefingContentInput').value = existing ? (existing.content || '') : '';
+
+  BRIEFING_SECTIONS.forEach(s => {
+    const sec = existingSections ? (existingSections[s.key] || { useTemplate: true, content: '' })
+      : { useTemplate: s.key !== 'forward' || !legacyContent, content: s.key === 'forward' ? legacyContent : '' };
+    const checkbox = document.getElementById(`adminBriefSection_${s.key}_useTemplate`);
+    const textarea = document.getElementById(`adminBriefSection_${s.key}_content`);
+    checkbox.checked = !!sec.useTemplate;
+    textarea.value = sec.content || '';
+    textarea.disabled = !!sec.useTemplate;
+    textarea.style.background = sec.useTemplate ? '#f4f4f7' : '#fff';
+  });
 
   modal.classList.remove('hidden');
 }
@@ -277,9 +317,13 @@ async function saveAdminBriefing() {
   const dateKey = activeAdminBriefingDateKey;
   const catId = activeAdminBriefingCatId;
   if (!dateKey) return;
-  const title = document.getElementById('adminBriefingTitleInput').value.trim();
-  const content = document.getElementById('adminBriefingContentInput').value.trim();
-  if (!title || !content) { alert('제목과 내용을 입력해 주세요.'); return; }
+
+  const sections = {};
+  BRIEFING_SECTIONS.forEach(s => {
+    const useTemplate = document.getElementById(`adminBriefSection_${s.key}_useTemplate`).checked;
+    const content = document.getElementById(`adminBriefSection_${s.key}_content`).value.trim();
+    sections[s.key] = { useTemplate, content: useTemplate ? '' : content };
+  });
 
   const confirmBtn = document.querySelector('#adminBriefingEditorModal .modal-confirm');
   confirmBtn.disabled = true;
@@ -288,8 +332,7 @@ async function saveAdminBriefing() {
     const existing = briefingsCache[dateKey] || null;
     await briefingsRef.child(dateKey).update({
       date: dateKey,
-      title,
-      content,
+      sections,
       createdAt: existing && existing.createdAt ? existing.createdAt : Date.now(),
       updatedAt: Date.now()
     });
@@ -356,6 +399,30 @@ function renderBriefingCalendar() {
   container.innerHTML = html;
 }
 
+function renderBriefingDaySections(item) {
+  const wrap = document.getElementById('briefingDaySections');
+  if (!wrap) return;
+  const sections = item.sections || null;
+
+  if (!sections) {
+    // 구버전(제목/내용 단일 구조) 데이터 호환 표시
+    wrap.innerHTML = `<div style="border:1px solid #e2e5f3; border-radius:10px; padding:12px; font-size:13px; line-height:1.6; white-space:pre-wrap;">${escapeHtml(item.content || '(등록된 내용이 없습니다)')}</div>`;
+    return;
+  }
+
+  wrap.innerHTML = BRIEFING_SECTIONS.map(s => {
+    const sec = sections[s.key] || { useTemplate: true, content: '' };
+    const body = sec.useTemplate
+      ? `<div style="font-size:12px; color:#999; font-style:italic;">(양식 내용 그대로 적용됨)</div>`
+      : `<div style="font-size:13px; color:#333; line-height:1.6; white-space:pre-wrap;">${escapeHtml(sec.content || '')}</div>`;
+    return `
+      <div style="margin-bottom:12px; border:1px solid #e2e5f3; border-radius:10px; padding:12px;">
+        <div style="font-weight:700; font-size:13px; color:#4e65df; margin-bottom:6px;">${s.label}</div>
+        ${body}
+      </div>`;
+  }).join('');
+}
+
 function ensureBriefingPopup() {
   let modal = document.getElementById('briefingDayViewModal');
   if (modal) return modal;
@@ -363,28 +430,53 @@ function ensureBriefingPopup() {
   modal.id = 'briefingDayViewModal';
   modal.className = 'modal-overlay hidden';
   modal.innerHTML = `
-    <div class="modal-box" style="width:520px; max-width:94vw; max-height:90vh; display:flex; flex-direction:column; padding:22px; overflow-y:auto;">
+    <div class="modal-box" style="width:560px; max-width:94vw; max-height:90vh; display:flex; flex-direction:column; padding:22px; overflow-y:auto;">
       <h3 id="briefingDayTitle" style="margin-bottom:6px; color:#2b2f3e;">브리핑일지</h3>
       <div id="briefingDayMeta" style="font-size:11px; color:#888; margin-bottom:10px;"></div>
-      <div id="briefingDayContent" style="overflow:auto; max-height:34vh; border:1px solid #e2e5f3; background:#fff; border-radius:10px; padding:12px; font-size:13px; line-height:1.6; white-space:pre-wrap;"></div>
+      <div id="briefingDaySections"></div>
 
-      <div id="briefingConfirmedInfo" class="hidden" style="margin-top:14px; background:#f0fff7; border:1px solid #b8efd2; color:#178a52; border-radius:10px; padding:12px; font-size:13px; font-weight:700; text-align:center;"></div>
+      <div id="briefingConfirmedInfo" class="hidden" style="margin-top:6px; background:#f0fff7; border:1px solid #b8efd2; color:#178a52; border-radius:10px; padding:12px; font-size:13px; font-weight:700; text-align:center;"></div>
+
+      <div id="briefingReadAllWrap" style="margin-top:10px; padding:10px; background:#f8f9fd; border-radius:8px; border:1px solid #eef0fa;">
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700; color:#2b2f3e; cursor:pointer; margin:0;">
+          <input type="checkbox" id="briefingReadAllCheck" onchange="onBriefingReadAllToggle()" style="width:auto; margin:0;">
+          브리핑 내용을 모두 확인했습니다.
+        </label>
+      </div>
 
       <div id="briefingSignSection" style="margin-top:14px;">
-        <div style="font-size:12px; color:#666; margin-bottom:6px;">✍️ 아래 칸에 서명 후 저장을 누르면 확인 처리됩니다.</div>
-        <canvas id="briefingDaySignCanvas" width="360" height="150" style="width:100%; height:150px; background:#fff; border:1px solid #ddd; border-radius:10px; touch-action:none;"></canvas>
+        <div style="font-size:12px; color:#666; margin-bottom:6px;">✍️ 위 체크 후 아래 칸에 서명해 주세요.</div>
+        <canvas id="briefingDaySignCanvas" width="360" height="150" style="width:100%; height:150px; background:#fff; border:1px solid #ddd; border-radius:10px; touch-action:none; opacity:0.5;"></canvas>
         <div style="display:flex; gap:8px; margin-top:8px;">
-          <button class="modal-cancel" style="flex:1; padding:8px; border:none; border-radius:8px;" onclick="clearSignatureCanvasEl('briefingDaySignCanvas')">지우기</button>
+          <button class="modal-cancel" id="briefingSignRedoBtn" style="flex:1; padding:8px; border:none; border-radius:8px;" onclick="clearSignatureCanvasEl('briefingDaySignCanvas'); document.getElementById('briefingConfirmBtn').disabled = true;" disabled>다시쓰기</button>
         </div>
       </div>
 
       <div class="modal-actions" style="margin-top:14px;">
         <button class="modal-cancel" onclick="closeBriefingDayPopup()">닫기</button>
-        <button class="modal-confirm" id="briefingConfirmBtn">서명 저장 및 확인</button>
+        <button class="modal-confirm" id="briefingConfirmBtn" disabled>저장</button>
       </div>
     </div>`;
   document.body.appendChild(modal);
   return modal;
+}
+
+function onBriefingReadAllToggle() {
+  const checked = document.getElementById('briefingReadAllCheck').checked;
+  const canvas = document.getElementById('briefingDaySignCanvas');
+  const redoBtn = document.getElementById('briefingSignRedoBtn');
+  const saveBtn = document.getElementById('briefingConfirmBtn');
+  if (checked) {
+    canvas.style.pointerEvents = 'auto';
+    canvas.style.opacity = '1';
+    redoBtn.disabled = false;
+    saveBtn.disabled = !hasSignatureStroke('briefingDaySignCanvas');
+  } else {
+    canvas.style.pointerEvents = 'none';
+    canvas.style.opacity = '0.5';
+    redoBtn.disabled = true;
+    saveBtn.disabled = true;
+  }
 }
 
 function openBriefingDayPopup(dateKey) {
@@ -392,35 +484,47 @@ function openBriefingDayPopup(dateKey) {
   if (!item) { alert('해당 날짜에 등록된 브리핑일지가 없습니다.'); return; }
 
   const modal = ensureBriefingPopup();
-  const content = document.getElementById('briefingDayContent');
   const title = document.getElementById('briefingDayTitle');
   const meta = document.getElementById('briefingDayMeta');
   const btn = document.getElementById('briefingConfirmBtn');
   const signSection = document.getElementById('briefingSignSection');
   const confirmedInfo = document.getElementById('briefingConfirmedInfo');
+  const readAllWrap = document.getElementById('briefingReadAllWrap');
+  const readAllCheck = document.getElementById('briefingReadAllCheck');
+  const redoBtn = document.getElementById('briefingSignRedoBtn');
+  const canvas = document.getElementById('briefingDaySignCanvas');
 
-  title.textContent = item.title || `${dateKey} 브리핑일지`;
+  title.textContent = `${dateKey} 브리핑일지`;
   meta.textContent = `적용일자: ${dateKey}`;
-  content.textContent = item.content || '';
-  content.scrollTop = 0;
+  renderBriefingDaySections(item);
 
   const confirmed = isBriefingConfirmed(dateKey);
   if (confirmed) {
     const myId = getCurrentUserId();
     const myConfirm = (briefingConfirmationsCache[dateKey] || {})[myId] || {};
+    readAllWrap.classList.add('hidden');
     signSection.classList.add('hidden');
     btn.classList.add('hidden');
     confirmedInfo.classList.remove('hidden');
     confirmedInfo.innerHTML = `✅ 이미 확인 및 서명 완료했습니다.<br><span style="font-weight:400; font-size:11px;">확인시간: ${escapeHtml(myConfirm.signedAt || '')}</span>`;
   } else {
     confirmedInfo.classList.add('hidden');
+    readAllWrap.classList.remove('hidden');
     signSection.classList.remove('hidden');
     btn.classList.remove('hidden');
-    btn.disabled = false;
-    btn.textContent = '서명 저장 및 확인';
-    setupSignatureCanvasEl('briefingDaySignCanvas');
-    clearSignatureCanvasEl('briefingDaySignCanvas');
+    btn.textContent = '저장';
+    btn.disabled = true;
     btn.onclick = () => confirmBriefing(dateKey);
+
+    readAllCheck.checked = false;
+    canvas.style.pointerEvents = 'none';
+    canvas.style.opacity = '0.5';
+    redoBtn.disabled = true;
+    setupSignatureCanvasEl('briefingDaySignCanvas', () => {
+      const saveBtn = document.getElementById('briefingConfirmBtn');
+      if (saveBtn) saveBtn.disabled = false;
+    });
+    clearSignatureCanvasEl('briefingDaySignCanvas');
   }
 
   modal.classList.remove('hidden');
@@ -437,6 +541,8 @@ async function confirmBriefing(dateKey) {
   if (!id) { alert('로그인 정보가 없습니다.'); return; }
   if (!briefingsCache[dateKey]) { alert('브리핑일지를 찾을 수 없습니다.'); return; }
   if (isBriefingConfirmed(dateKey)) { alert('이미 확인 완료된 브리핑일지입니다.'); return; }
+  const readAllCheck = document.getElementById('briefingReadAllCheck');
+  if (!readAllCheck || !readAllCheck.checked) { alert('먼저 "브리핑 내용을 모두 확인했습니다"에 체크해 주세요.'); return; }
   if (!hasSignatureStroke('briefingDaySignCanvas')) { alert('서명을 먼저 입력해 주세요.'); return; }
 
   const canvas = document.getElementById('briefingDaySignCanvas');
@@ -460,7 +566,7 @@ async function confirmBriefing(dateKey) {
     console.error(err);
     alert('저장 중 오류가 발생했습니다.');
     btn.disabled = false;
-    btn.textContent = '서명 저장 및 확인';
+    btn.textContent = '저장';
   }
 }
 

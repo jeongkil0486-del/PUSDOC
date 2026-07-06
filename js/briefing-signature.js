@@ -921,17 +921,77 @@ function getRangePixelBox(worksheet, range) {
   return { width: width, height: height };
 }
 
-function getImageSize(base64) {
-  return new Promise(function(resolve) {
+/* 서명 캔버스는 실제 서명 칸보다 훨씬 큰 빈 캔버스(예: 360x150)로 캡처되는 경우가
+   많고, 사람마다 서명을 캔버스의 어느 위치에 그리는지 제각각이다. 캔버스 전체
+   이미지를 "그대로" 병합 셀 중앙에 넣으면, 캔버스 자체는 중앙에 있어도 그 안의
+   실제 잉크(서명 획)는 캔버스에서 그려진 위치에 그대로 남아있기 때문에 셀 안에서
+   좌측으로 치우쳐 보이는 문제가 생긴다.
+   이 함수는 투명하지 않은(실제로 그려진) 픽셀만의 바운딩 박스를 찾아 그 영역만
+   잘라낸 새 이미지를 만들어 반환한다. 이렇게 "잉크 기준으로 트리밍된" 이미지를
+   중앙 정렬하면, 서명 획 자체가 병합 셀의 정중앙에 오게 된다. */
+let signatureTrimCache = {};
+function trimSignatureImageToInk(base64) {
+  if (signatureTrimCache[base64]) return signatureTrimCache[base64];
+  const promise = new Promise(function(resolve) {
     const img = new Image();
     img.onload = function() {
-      resolve({ width: img.naturalWidth || 180, height: img.naturalHeight || 60 });
+      try {
+        const w = img.naturalWidth || img.width || 1;
+        const h = img.naturalHeight || img.height || 1;
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+
+        const alphaThreshold = 10; // 이 값보다 alpha가 크면 "실제로 그려진 픽셀"로 판단
+        const data = ctx.getImageData(0, 0, w, h).data;
+        let minX = w, minY = h, maxX = -1, maxY = -1;
+        for (let y = 0; y < h; y++) {
+          const rowStart = y * w * 4;
+          for (let x = 0; x < w; x++) {
+            const alpha = data[rowStart + x * 4 + 3];
+            if (alpha > alphaThreshold) {
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+
+        if (maxX < minX || maxY < minY) {
+          // 잉크(불투명 픽셀)를 찾지 못한 경우 원본 이미지를 그대로 사용
+          resolve({ base64: base64, width: w, height: h });
+          return;
+        }
+
+        const pad = 2; // 잘라낸 서명 획 가장자리가 너무 딱 붙지 않도록 약간의 여백
+        minX = Math.max(0, minX - pad);
+        minY = Math.max(0, minY - pad);
+        maxX = Math.min(w - 1, maxX + pad);
+        maxY = Math.min(h - 1, maxY + pad);
+        const cropW = (maxX - minX) + 1;
+        const cropH = (maxY - minY) + 1;
+
+        const cropCanvas = document.createElement('canvas');
+        cropCanvas.width = cropW;
+        cropCanvas.height = cropH;
+        cropCanvas.getContext('2d').drawImage(canvas, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
+
+        resolve({ base64: cropCanvas.toDataURL('image/png'), width: cropW, height: cropH });
+      } catch (e) {
+        // getImageData 실패(예: 캔버스 보안 제약) 시 원본 이미지 크기 그대로 사용
+        resolve({ base64: base64, width: img.naturalWidth || 180, height: img.naturalHeight || 60 });
+      }
     };
     img.onerror = function() {
-      resolve({ width: 180, height: 60 });
+      resolve({ base64: base64, width: 180, height: 60 });
     };
     img.src = base64;
   });
+  signatureTrimCache[base64] = promise;
+  return promise;
 }
 
 /* 서명 병합 영역 안의 픽셀 오프셋(0 = 영역의 왼쪽/위쪽 끝)을,
@@ -955,24 +1015,33 @@ function pixelOffsetToCellFraction(worksheet, startUnit, endUnit, isColumn, pxOf
 }
 
 /* 서명 이미지를 서명 셀(또는 서명 병합 셀) 영역 "안에" 중앙 정렬로 삽입한다.
-   - 병합 영역 전체를 기준으로 여백을 두고 중앙에 배치
+   - 병합 영역 전체(모든 병합된 컬럼 너비 합 / 모든 병합된 행 높이 합)를
+     하나의 박스로 계산 (getRangePixelBox)
+   - 서명 이미지는 캔버스 전체가 아니라 "실제로 그려진 잉크 부분"만 잘라낸 뒤
+     (trimSignatureImageToInk) 그 잘라낸 이미지의 실제 가로/세로 크기를 기준으로
+     중앙 좌표를 계산한다. 캔버스 전체를 그대로 썼을 때, 캔버스 자체는 셀 중앙에
+     있어도 그 안의 서명 획은 사용자가 그린 위치(주로 좌측 상단)에 그대로 남아있어
+     셀 안에서 좌측으로 치우쳐 보이는 문제가 있었음.
+   - 가로 중앙 = (박스 너비 - 이미지 너비) / 2, 세로 중앙 = (박스 높이 - 이미지 높이) / 2
    - 원본 이미지 가로세로 비율 유지 (박스보다 크면 축소만 하고 확대는 하지 않음)
    - 병합 영역 밖으로 튀어나가지 않도록 tl/br을 모두 영역 내부 좌표로 계산
    - editAs: 'twoCell' + tl/br 앵커를 사용해 엑셀의 "셀에 맞춰 이동 및 크기 조정"과
      동일하게 동작하도록 함 (열 너비/행 높이를 바꾸면 이미지도 셀을 따라간다) */
 async function insertSignatureImageCentered(workbook, worksheet, base64, row, col) {
   const mergeRange = findMergeRangeForCell(worksheet, row, col);
-  const box = getRangePixelBox(worksheet, mergeRange);
-  const natural = await getImageSize(base64);
+  const box = getRangePixelBox(worksheet, mergeRange); // 병합 영역 전체의 실제 픽셀 width/height
+  const trimmed = await trimSignatureImageToInk(base64); // 실제 서명 잉크만 잘라낸 이미지
+  const natural = { width: trimmed.width, height: trimmed.height };
 
   const paddingX = 6;
   const paddingY = 4;
   const maxWidth = Math.max(10, box.width - paddingX * 2);
   const maxHeight = Math.max(10, box.height - paddingY * 2);
-  const scale = Math.min(maxWidth / natural.width, maxHeight / natural.height, 1);
+  const scale = Math.min(maxWidth / natural.width, maxHeight / natural.height, 1); // 비율 유지, 축소만 허용
   const width = Math.max(10, natural.width * scale);
   const height = Math.max(10, natural.height * scale);
 
+  // 병합 영역 박스 안에서 가로/세로 정중앙이 되는 오프셋
   const offsetXPx = Math.max(0, (box.width - width) / 2);
   const offsetYPx = Math.max(0, (box.height - height) / 2);
 
@@ -981,7 +1050,7 @@ async function insertSignatureImageCentered(workbook, worksheet, base64, row, co
   const brCol = pixelOffsetToCellFraction(worksheet, mergeRange.startCol, mergeRange.endCol, true, offsetXPx + width);
   const brRow = pixelOffsetToCellFraction(worksheet, mergeRange.startRow, mergeRange.endRow, false, offsetYPx + height);
 
-  const imgId = workbook.addImage({ base64: base64, extension: 'png' });
+  const imgId = workbook.addImage({ base64: trimmed.base64, extension: 'png' });
   worksheet.addImage(imgId, {
     tl: { col: tlCol, row: tlRow },
     br: { col: brCol, row: brRow },

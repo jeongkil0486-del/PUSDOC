@@ -138,13 +138,13 @@ function renderAdminAll() {
     if(cat.type === 'board') {
       row.innerHTML = `<button class="upload-btn" onclick="openBoardEditor('${catId}')">새 글 작성</button>`;
     } else if(cat.type === 'briefing') {
-      const templateName = briefingTemplateCache && briefingTemplateCache.fileName ? briefingTemplateCache.fileName : '기본 양식 사용중';
+      const templateName = briefingTemplateCache && briefingTemplateCache.fileName ? briefingTemplateCache.fileName : '등록된 월별 양식 없음';
       row.innerHTML = `
-        <button class="upload-btn" onclick="openBoardEditor('${catId}')">브리핑일지 작성</button>
-        <button class="upload-btn" style="background:linear-gradient(135deg,#8b6df8,#a78bfa);" onclick="document.getElementById('briefingTemplateInput_${catId}').click()">브리핑 양식 등록/교체</button>
-        <input type="file" id="briefingTemplateInput_${catId}" accept=".xlsx" onchange="handleBriefingTemplateUpload(event)">
+        <button class="upload-btn" style="background:linear-gradient(135deg,#8b6df8,#a78bfa);" onclick="document.getElementById('briefingWorkbookInput_${catId}').click()">일별 시트 브리핑 엑셀 업로드</button>
+        <input type="file" id="briefingWorkbookInput_${catId}" accept=".xlsx,.xls" onchange="handleBriefingWorkbookUpload(event,'${catId}')">
+        <button class="upload-btn" onclick="openBoardEditor('${catId}')">단일 일자 수기 작성</button>
         <button class="upload-btn" style="background:linear-gradient(135deg,#34c98f,#27ae60);" onclick="downloadBriefingTemplateExcel('${catId}')">월별 서명본 엑셀 다운로드</button>
-        <span class="upload-status">현재 양식: ${escapeHtml(templateName)}</span>
+        <span class="upload-status">현재 등록 양식: ${escapeHtml(templateName)}</span>
       `;
     } else if(cat.type === 'link') {
       row.innerHTML = `<button class="upload-btn" style="background:linear-gradient(135deg,#ff9f43,#ff793f);" onclick="openLinkEditor('${catId}')">🔗 링크 추가</button>`;

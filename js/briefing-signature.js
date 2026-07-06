@@ -478,3 +478,302 @@ async function downloadBriefingTemplateExcel(catId) {
     alert('브리핑일지 서명본 생성 중 오류가 발생했습니다. 양식 파일이 손상되었거나 브라우저가 엑셀 생성을 지원하지 않을 수 있습니다.');
   }
 }
+
+/* =========================================================
+   브리핑일지 월별 엑셀 업로드 + 직원 달력 확인 모듈
+   - 관리자: 일별 시트가 있는 엑셀을 업로드하면 각 시트가 해당 날짜 브리핑으로 등록됨
+   - 직원: 브리핑일지 메뉴에서 달력으로 확인 필요/확인 완료 상태 확인
+   - 읽기 팝업: 내용을 열고 스크롤/대기 후에만 확인 버튼 활성화
+========================================================= */
+function getAdminSelectedBriefingYearMonth() {
+  const ySel = document.getElementById('adminSchYear');
+  const mSel = document.getElementById('adminSchMonth');
+  const now = new Date();
+  return {
+    year: ySel ? parseInt(ySel.value, 10) : now.getFullYear(),
+    month: mSel ? parseInt(mSel.value, 10) : now.getMonth() + 1
+  };
+}
+
+function daysInBriefingMonth(year, month) {
+  return new Date(year, month, 0).getDate();
+}
+
+function normalizeSheetNameForDate(name) {
+  return String(name || '').toLowerCase().replace(/\s+/g, '').replace(/월/g,'.').replace(/일/g,'').replace(/_/g,'.').replace(/-/g,'.');
+}
+
+function inferBriefingDayFromSheetName(sheetName, fallbackIndex, year, month) {
+  const nm = normalizeSheetNameForDate(sheetName);
+  const maxDay = daysInBriefingMonth(year, month);
+  const patterns = [
+    /^(\d{1,2})$/,
+    /^(\d{1,2})\.$/,
+    /^(\d{1,2})\.(\d{1,2})$/,
+    /^(\d{4})\.(\d{1,2})\.(\d{1,2})$/,
+    /(\d{1,2})\.(\d{1,2})/,
+    /(\d{1,2})일?$/
+  ];
+  for(const re of patterns) {
+    const m = nm.match(re);
+    if(!m) continue;
+    let d = null;
+    if(m.length >= 4) {
+      const y = parseInt(m[1],10), mo = parseInt(m[2],10), day = parseInt(m[3],10);
+      if(y === year && mo === month) d = day;
+    } else if(m.length >= 3) {
+      const a = parseInt(m[1],10), b = parseInt(m[2],10);
+      if(a === month) d = b;
+      else if(b === month) d = a;
+      else d = b;
+    } else if(m.length >= 2) {
+      d = parseInt(m[1],10);
+    }
+    if(d && d >= 1 && d <= maxDay) return d;
+  }
+  const idxDay = fallbackIndex + 1;
+  return idxDay >= 1 && idxDay <= maxDay ? idxDay : null;
+}
+
+function makeBriefingDateKey(year, month, day) {
+  return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+}
+
+function stripHtmlToText(html) {
+  const div = document.createElement('div');
+  div.innerHTML = html || '';
+  return div.textContent || div.innerText || '';
+}
+
+function cleanSheetHtml(html) {
+  return String(html || '')
+    .replace(/<html[^>]*>|<\/html>|<head[\s\S]*?<\/head>|<body[^>]*>|<\/body>/gi, '')
+    .replace(/<table/gi, '<table class="briefing-sheet-table"')
+    .trim();
+}
+
+async function handleBriefingWorkbookUpload(event, catId) {
+  const file = event.target.files && event.target.files[0];
+  if(!file) return;
+  if(!/\.xlsx?$/i.test(file.name)) { alert('엑셀 파일(.xlsx/.xls)만 업로드할 수 있습니다.'); event.target.value=''; return; }
+  if(typeof XLSX === 'undefined') { alert('XLSX 라이브러리가 로드되지 않았습니다.'); event.target.value=''; return; }
+
+  const { year, month } = getAdminSelectedBriefingYearMonth();
+  const ym = `${year}-${String(month).padStart(2,'0')}`;
+  const ok = confirm(`${year}년 ${month}월 브리핑일지로 등록합니다.\n\n엑셀의 각 시트가 일자별 브리핑으로 저장되고, 같은 날짜가 이미 있으면 덮어쓰기 됩니다. 진행할까요?`);
+  if(!ok) { event.target.value=''; return; }
+
+  const reader = new FileReader();
+  reader.onload = async e => {
+    try {
+      const dataUrl = e.target.result;
+      const base64 = String(dataUrl).split(',')[1];
+      const wb = XLSX.read(base64, { type:'base64', cellDates:true });
+      const updates = {};
+      let count = 0;
+      const nowTs = Date.now();
+
+      wb.SheetNames.forEach((sheetName, idx) => {
+        const day = inferBriefingDayFromSheetName(sheetName, idx, year, month);
+        if(!day) return;
+        const ws = wb.Sheets[sheetName];
+        const rawHtml = XLSX.utils.sheet_to_html(ws, { editable:false });
+        const contentHtml = cleanSheetHtml(rawHtml);
+        const text = stripHtmlToText(contentHtml).replace(/\s+/g, ' ').trim();
+        if(!text) return;
+        const dateKey = makeBriefingDateKey(year, month, day);
+        const itemId = `brief_${dateKey}`;
+        updates[itemId] = {
+          title: `${dateKey} 브리핑일지`,
+          content: text.slice(0, 4000),
+          contentHtml,
+          date: new Date().toLocaleString('ko-KR'),
+          imageUrl: '',
+          briefingDateKey: dateKey,
+          sourceSheetName: sheetName,
+          sourceFileName: file.name,
+          timestamp: nowTs + day,
+          uploadedAt: new Date().toLocaleString('ko-KR'),
+          uploadType: 'excel-sheet'
+        };
+        count++;
+      });
+
+      if(count === 0) {
+        alert('등록할 수 있는 시트를 찾지 못했습니다. 시트명 또는 선택한 년/월을 확인해 주세요.');
+        return;
+      }
+
+      await dataRef.child(catId).update(updates);
+      await briefingTemplateRef.set({
+        fileName: file.name,
+        dataUrl,
+        year,
+        month,
+        ym,
+        sheetCount: count,
+        updatedAt: new Date().toLocaleString('ko-KR'),
+        updatedAtTs: Date.now()
+      });
+      alert(`✅ ${year}년 ${month}월 브리핑일지 ${count}개 시트가 등록되었습니다.`);
+    } catch(err) {
+      console.error(err);
+      alert('브리핑 엑셀 업로드 중 오류가 발생했습니다. 파일 형식이나 시트 구성을 확인해 주세요.');
+    } finally {
+      event.target.value = '';
+      renderAdminAll();
+    }
+  };
+  reader.onerror = () => { alert('엑셀 파일을 읽지 못했습니다.'); event.target.value=''; };
+  reader.readAsDataURL(file);
+}
+
+function getBriefingItemsForCurrentCategory() {
+  const catId = currentCategory || 'briefing';
+  const itemsData = dynamicDataCache[catId] || {};
+  return Object.keys(itemsData).map(k => ({ id:k, ...itemsData[k] }))
+    .filter(item => getBriefingItemDateKey(item))
+    .sort((a,b) => String(getBriefingItemDateKey(a)).localeCompare(String(getBriefingItemDateKey(b))));
+}
+
+function findBriefingByDate(dateKey) {
+  return getBriefingItemsForCurrentCategory().find(item => getBriefingItemDateKey(item) === dateKey) || null;
+}
+
+function renderBriefingCalendar() {
+  const container = document.getElementById('calendarGridContainer');
+  if(!container) return;
+  const yearSel = document.getElementById('calendarYearSelect');
+  const monthSel = document.getElementById('calendarMonthSelect');
+  const now = new Date();
+  const year = yearSel ? parseInt(yearSel.value, 10) : now.getFullYear();
+  const month = monthSel ? parseInt(monthSel.value, 10) : now.getMonth() + 1;
+  const first = new Date(year, month - 1, 1);
+  const lastDate = new Date(year, month, 0).getDate();
+  const startDay = first.getDay();
+  const todayKey = makeBriefingDateKey(now.getFullYear(), now.getMonth()+1, now.getDate());
+  const items = getBriefingItemsForCurrentCategory();
+  const itemMap = {};
+  items.forEach(item => { itemMap[getBriefingItemDateKey(item)] = item; });
+
+  let html = `
+    <div style="background:#fff; border:1px solid #e2e5f3; border-radius:14px; padding:12px; margin-bottom:12px; box-shadow:0 6px 16px rgba(109,131,255,0.06);">
+      <div style="font-size:13px; font-weight:800; color:#4e65df; margin-bottom:4px;">🛫 브리핑일지 확인 달력</div>
+      <div style="font-size:11px; color:#777; line-height:1.5;">확인하지 않은 브리핑은 <b style="color:#e25b5b;">확인 필요</b>로 표시됩니다. 날짜를 누르면 내용을 읽고 확인 서명을 남길 수 있습니다.</div>
+    </div>
+    <table class="calendar-table"><thead><tr><th>일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th>토</th></tr></thead><tbody>`;
+  let day = 1;
+  for(let r=0; r<6; r++) {
+    html += '<tr>';
+    for(let c=0; c<7; c++) {
+      if((r===0 && c<startDay) || day>lastDate) {
+        html += '<td class="day-empty"><div class="calendar-day-cell"></div></td>';
+      } else {
+        const dateKey = makeBriefingDateKey(year, month, day);
+        const item = itemMap[dateKey];
+        const confirmed = item ? isBriefingConfirmed(item.id) : false;
+        const cls = dateKey === todayKey ? 'today-cell' : '';
+        const badge = item ? (confirmed
+          ? `<div class="sch-code" style="background:linear-gradient(135deg,#34c98f,#27ae60);">확인 완료</div>`
+          : `<div class="sch-code off-code">확인 필요</div>`) : '';
+        const title = item ? `<div class="sch-time" style="cursor:pointer; color:#2b2f3e;">브리핑 등록</div>` : '';
+        const click = item ? `onclick="openBriefingDayPopup('${dateKey}')" style="cursor:pointer;"` : '';
+        html += `<td class="${cls}" ${click}><div class="calendar-day-cell"><div class="day-num">${day}</div>${badge}${title}</div></td>`;
+        day++;
+      }
+    }
+    html += '</tr>';
+    if(day > lastDate) break;
+  }
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function ensureBriefingPopup() {
+  let modal = document.getElementById('briefingDayViewModal');
+  if(modal) return modal;
+  modal = document.createElement('div');
+  modal.id = 'briefingDayViewModal';
+  modal.className = 'modal-overlay hidden';
+  modal.innerHTML = `
+    <div class="modal-box" style="width:720px; max-width:94vw; max-height:90vh; display:flex; flex-direction:column; padding:22px;">
+      <h3 id="briefingDayTitle" style="margin-bottom:6px; color:#2b2f3e;">브리핑일지</h3>
+      <div id="briefingDayMeta" style="font-size:11px; color:#888; margin-bottom:10px;"></div>
+      <div id="briefingDayContent" style="overflow:auto; max-height:58vh; border:1px solid #e2e5f3; background:#fff; border-radius:10px; padding:12px; font-size:13px; line-height:1.6;"></div>
+      <div id="briefingReadGuide" style="font-size:11px; color:#e25b5b; font-weight:700; margin-top:8px; min-height:16px; text-align:center;">내용을 끝까지 읽으면 확인 버튼이 활성화됩니다.</div>
+      <div class="modal-actions" style="margin-top:10px;">
+        <button class="modal-cancel" onclick="closeBriefingDayPopup()">닫기</button>
+        <button class="modal-confirm" id="briefingConfirmBtn" disabled>확인하고 서명 입력</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  return modal;
+}
+
+function openBriefingDayPopup(dateKey) {
+  const item = findBriefingByDate(dateKey);
+  if(!item) return;
+  const modal = ensureBriefingPopup();
+  const content = document.getElementById('briefingDayContent');
+  const title = document.getElementById('briefingDayTitle');
+  const meta = document.getElementById('briefingDayMeta');
+  const btn = document.getElementById('briefingConfirmBtn');
+  const guide = document.getElementById('briefingReadGuide');
+  const confirmed = isBriefingConfirmed(item.id);
+
+  title.textContent = item.title || `${dateKey} 브리핑일지`;
+  meta.textContent = `적용일자: ${dateKey}${item.sourceSheetName ? ' / 시트: ' + item.sourceSheetName : ''}`;
+  content.innerHTML = item.contentHtml ? `<div class="briefing-sheet-wrap">${item.contentHtml}</div>` : `<div style="white-space:pre-wrap;">${escapeHtml(item.content || '')}</div>`;
+  content.scrollTop = 0;
+  btn.onclick = () => confirmBriefing(currentCategory, item.id);
+
+  if(confirmed) {
+    btn.disabled = true;
+    btn.textContent = '✅ 이미 확인 완료';
+    guide.textContent = '이미 확인 및 서명 처리된 브리핑일지입니다.';
+    guide.style.color = '#178a52';
+  } else {
+    btn.disabled = true;
+    btn.textContent = '확인하고 서명 입력';
+    guide.style.color = '#e25b5b';
+    guide.textContent = '내용을 끝까지 읽으면 확인 버튼이 활성화됩니다.';
+    const enable = () => {
+      if(isBriefingConfirmed(item.id)) return;
+      btn.disabled = false;
+      guide.textContent = '내용 확인 후 버튼을 눌러 서명을 기록하세요.';
+      guide.style.color = '#4e65df';
+    };
+    setTimeout(() => {
+      if(content.scrollHeight <= content.clientHeight + 20) enable();
+    }, 1200);
+    content.onscroll = () => {
+      if(content.scrollTop + content.clientHeight >= content.scrollHeight - 20) enable();
+    };
+  }
+  modal.classList.remove('hidden');
+}
+
+function closeBriefingDayPopup() {
+  const modal = document.getElementById('briefingDayViewModal');
+  if(modal) modal.classList.add('hidden');
+}
+
+// 기존 확인 함수 보강: 확인 후 달력/관리자 화면 갱신
+const confirmBriefingCore = confirmBriefing;
+confirmBriefing = async function(catId, itemId) {
+  await confirmBriefingCore(catId, itemId);
+  const modal = document.getElementById('briefingDayViewModal');
+  if(modal) modal.classList.add('hidden');
+  if(currentCategory && categoriesCache[currentCategory]?.type === 'briefing') renderBriefingCalendar();
+  renderAdminAll();
+};
+
+// 브리핑 항목은 목록 대신 달력으로 렌더링
+const renderUserFilesCoreForBriefingCalendar = renderUserFiles;
+renderUserFiles = function() {
+  if(currentCategory && categoriesCache[currentCategory]?.type === 'briefing') {
+    renderBriefingCalendar();
+    return;
+  }
+  return renderUserFilesCoreForBriefingCalendar();
+};

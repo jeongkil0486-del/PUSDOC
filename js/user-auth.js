@@ -156,7 +156,13 @@ function openCategory(category) {
     document.getElementById('userFileList').classList.add('hidden');
     document.getElementById('userGrievanceWrap').classList.add('hidden');
     document.getElementById('userCalendarWrap').classList.remove('hidden'); 
+    const btnRow = document.querySelector('#userCalendarWrap .calendar-button-row');
+    if(btnRow) btnRow.style.display = 'flex';
     initCalendarSelectors();
+    const ySel = document.getElementById('calendarYearSelect');
+    const mSel = document.getElementById('calendarMonthSelect');
+    if(ySel) ySel.onchange = renderScheduleCalendar;
+    if(mSel) mSel.onchange = renderScheduleCalendar;
 
     if (myEmpId) {
       const currentUnread = parseInt(localStorage.getItem(`unreadcount_${myEmpId}`) || '0', 10);
@@ -164,6 +170,19 @@ function openCategory(category) {
       localStorage.setItem(`unreadcount_${myEmpId}`, '0');
     }
     renderScheduleCalendar();
+  } else if(catInfo && catInfo.type === 'briefing') {
+    document.getElementById('userSearchBoxWrap').classList.add('hidden');
+    document.getElementById('userFileList').classList.add('hidden');
+    document.getElementById('userGrievanceWrap').classList.add('hidden');
+    document.getElementById('userCalendarWrap').classList.remove('hidden');
+    const btnRow = document.querySelector('#userCalendarWrap .calendar-button-row');
+    if(btnRow) btnRow.style.display = 'none';
+    initCalendarSelectors();
+    const ySel = document.getElementById('calendarYearSelect');
+    const mSel = document.getElementById('calendarMonthSelect');
+    if(ySel) ySel.onchange = renderBriefingCalendar;
+    if(mSel) mSel.onchange = renderBriefingCalendar;
+    renderBriefingCalendar();
   } else if(catInfo && catInfo.type === 'grievance') {
     document.getElementById('userSearchBoxWrap').classList.add('hidden');
     document.getElementById('userFileList').classList.add('hidden');

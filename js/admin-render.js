@@ -253,7 +253,12 @@ function renderUserMenu() {
 
     let unreadCount = 0;
     // 고충접수 회색 가이드 문구 간결화 교체 완료
-    let subDescription = cat.type==='board'?'안내글 및 게시사항 확인':cat.type==='schedule'?'달력식 실시간 개인 근무 확인':'자료실 및 파일 확인';
+    let subDescription = cat.description ||
+      (cat.type==='board' ? '안내글 및 게시사항 확인' :
+       cat.type==='schedule' ? '달력식 실시간 개인 근무 확인' :
+       cat.type==='briefing' ? '브리핑 내용 확인 및 서명' :
+       cat.type==='link' ? '관련 링크 바로가기' :
+       '자료실 및 파일 확인');
     
     if (cat.type === 'schedule') {
       if (myEmpId) unreadCount = parseInt(localStorage.getItem(`unreadcount_${myEmpId}`) || '0', 10);

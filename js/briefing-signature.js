@@ -637,7 +637,43 @@ function renderBriefingCalendar() {
   container.innerHTML = html;
 }
 
-function renderBriefingDaySections(item) {
+/* 브리핑 양식(엑셀)에서 특정 섹션의 실제 셀 값을 읽어 반환한다.
+   - briefingTemplateCache.dataUrl 에 등록된 엑셀 로드
+   - briefingTemplateMappingCache.sections[mapKey] 셀 주소로 셀 읽기
+   - richText / formula / 일반 string 모두 처리해 문자열로 반환
+   - 양식 미등록·셀 주소 미설정·값 없음이면 null 반환 */
+async function getTemplateSectionText(sectionKey) {
+  try {
+    if (typeof ExcelJS === 'undefined') return null;
+    if (!briefingTemplateCache || !briefingTemplateCache.dataUrl) return null;
+    const mapping = getBriefingTemplateMappingNormalized();
+    const mapKey = BRIEFING_SECTION_TO_MAPPING_KEY[sectionKey];
+    const cellAddr = mapping.sections[mapKey];
+    if (!cellAddr) return null;
+    const ref = parseCellRef(cellAddr);
+    if (!ref) return null;
+    const buffer = dataUrlToArrayBuffer(briefingTemplateCache.dataUrl);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer);
+    const ws = wb.worksheets[0];
+    if (!ws) return null;
+    const cell = ws.getCell(ref.row, ref.col);
+    const v = cell.value;
+    if (v == null || v === '') return null;
+    // richText 객체 처리
+    if (typeof v === 'object' && v.richText) {
+      return v.richText.map(function(r) { return r.text || ''; }).join('');
+    }
+    // formula 결과 처리
+    if (typeof v === 'object' && v.result != null) return String(v.result);
+    return String(v);
+  } catch (e) {
+    console.warn('[getTemplateSectionText] 오류:', e);
+    return null;
+  }
+}
+
+async function renderBriefingDaySections(item) {
   const wrap = document.getElementById('briefingDaySections');
   if (!wrap) return;
   const meta = document.getElementById('briefingDayMeta');
@@ -650,11 +686,25 @@ function renderBriefingDaySections(item) {
     wrap.innerHTML = `<div style="border:1px solid #e2e5f3; border-radius:10px; padding:12px; font-size:13px; line-height:1.6; white-space:pre-wrap;">${escapeHtml(item.content || '(등록된 내용이 없습니다)')}</div>`;
     return;
   }
+  // useTemplate 섹션의 실제 셀 값을 미리 로드
+  const templateTexts = {};
+  for (const s of BRIEFING_SECTIONS) {
+    const sec = sections[s.key] || { useTemplate: true, content: '' };
+    if (sec.useTemplate) {
+      templateTexts[s.key] = await getTemplateSectionText(s.key);
+    }
+  }
   wrap.innerHTML = BRIEFING_SECTIONS.map(function(s) {
     const sec = sections[s.key] || { useTemplate: true, content: '' };
-    const body = sec.useTemplate
-      ? `<div style="font-size:12px; color:#999; font-style:italic;">(양식 내용 그대로 적용됨)</div>`
-      : `<div style="font-size:13px; color:#333; line-height:1.6; white-space:pre-wrap;">${escapeHtml(sec.content || '')}</div>`;
+    let body;
+    if (sec.useTemplate) {
+      const tmplText = templateTexts[s.key];
+      body = tmplText != null && tmplText.trim() !== ''
+        ? `<div style="font-size:13px; color:#333; line-height:1.6; white-space:pre-wrap;">${escapeHtml(tmplText)}</div>`
+        : `<div style="font-size:12px; color:#bbb; font-style:italic;">(양식에 등록된 내용 없음)</div>`;
+    } else {
+      body = `<div style="font-size:13px; color:#333; line-height:1.6; white-space:pre-wrap;">${escapeHtml(sec.content || '')}</div>`;
+    }
     return `
       <div style="margin-bottom:12px; border:1px solid #e2e5f3; border-radius:10px; padding:12px;">
         <div style="font-weight:700; font-size:13px; color:#4e65df; margin-bottom:6px;">${s.label}</div>
@@ -719,7 +769,7 @@ function onBriefingReadAllToggle() {
   }
 }
 
-function openBriefingDayPopup(dateKey) {
+async function openBriefingDayPopup(dateKey) {
   const item = briefingsCache[dateKey];
   if (!item) { alert('해당 날짜에 등록된 브리핑일지가 없습니다.'); return; }
   const modal = ensureBriefingPopup();
@@ -732,6 +782,7 @@ function openBriefingDayPopup(dateKey) {
   const redoBtn = document.getElementById('briefingSignRedoBtn');
   const canvas = document.getElementById('briefingDaySignCanvas');
   title.textContent = `${dateKey} 브리핑일지`;
+  wrap.innerHTML = '<div style="text-align:center; padding:20px; color:#aaa; font-size:13px;">내용을 불러오는 중...</div>';
   renderBriefingDaySections(item);
   const confirmed = isBriefingConfirmed(dateKey);
   if (confirmed) {

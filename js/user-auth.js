@@ -97,13 +97,28 @@ function logout() {
   localStorage.removeItem(SESSION_KEY);
   localStorage.removeItem(LOGGED_IN_ID_KEY);
   localStorage.removeItem('loggedInUserName');
+
+  // 부팅 시 주입된 loginScreen 숨김 스타일 제거 — 모바일에서 흰 화면 방지
+  const bootStyle = document.getElementById('bootHideLoginStyle');
+  if (bootStyle) bootStyle.remove();
+
+  // app-booting 클래스가 남아있을 경우 제거 (PWA 재진입 등 방어)
+  document.body.classList.remove('app-booting');
+  const bootScreen = document.getElementById('appBootScreen');
+  if (bootScreen) bootScreen.remove();
+
   document.getElementById('adminScreen').classList.add('hidden');
   document.getElementById('userScreen').classList.add('hidden');
-  document.getElementById('loginScreen').classList.remove('hidden');
+
+  // loginScreen을 인라인 style 포함 모든 방법으로 반드시 표시
+  const loginScreen = document.getElementById('loginScreen');
+  loginScreen.classList.remove('hidden');
+  loginScreen.style.removeProperty('display');
+
   document.getElementById('loginId').value = '';
   document.getElementById('loginPw').value = '';
   document.getElementById('loginError').textContent = '';
-  
+
   document.getElementById('idListPopupWrap').classList.add('hidden');
   closePreview();
   showMenu();

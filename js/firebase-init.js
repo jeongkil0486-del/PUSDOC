@@ -170,11 +170,16 @@ function finishAppBoot() {
   document.body.classList.remove('app-booting');
   const boot = document.getElementById('appBootScreen');
   if (boot) boot.remove();
-  // 세션이 없을 때 loginScreen이 CSS에 의해 숨겨진 상태라면 다시 표시
+  // 세션이 없을 때: 부팅 스타일 제거 후 loginScreen 표시
   const session = localStorage.getItem(SESSION_KEY);
   if (!session || (session !== 'admin' && session !== 'user')) {
+    const bootStyle = document.getElementById('bootHideLoginStyle');
+    if (bootStyle) bootStyle.remove();
     const ls = document.getElementById('loginScreen');
-    if (ls) ls.style.removeProperty('display');
+    if (ls) {
+      ls.classList.remove('hidden');
+      ls.style.removeProperty('display');
+    }
   }
 }
 

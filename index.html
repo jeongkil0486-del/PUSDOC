@@ -31,7 +31,11 @@
     var s = localStorage.getItem('eduSiteSession');
     if (s === 'admin' || s === 'user') {
       // 세션 있음 — loginScreen을 DOM에서 처음부터 숨긴 채로 시작
-      document.write('<style>#loginScreen{display:none!important}</style>');
+      // id를 붙여서 logout() 시 확실히 제거할 수 있게 함
+      var st = document.createElement('style');
+      st.id = 'bootHideLoginStyle';
+      st.textContent = '#loginScreen{display:none!important}';
+      document.head.appendChild(st);
     }
   } catch(e) {}
 })();

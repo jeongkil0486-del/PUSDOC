@@ -1,37 +1,53 @@
 /* =========================================================
    관리자 UI 렌더링 엔진
 ========================================================= */
+
+/* 카테고리 아이콘 반환 - type 기준으로 override
+   briefing 타입은 DB에 저장된 구버전 🛫 아이콘을 무시하고 📋 반환 */
+function getCategoryIcon(cat) {
+  if (!cat) return '📁';
+  if (cat.type === 'briefing') return '📋';
+  return cat.icon || '📁';
+}
+
 function toggleMinimizeSection(catId) {
   isFileListMinimizedMap[catId] = !isFileListMinimizedMap[catId];
   renderAdminAll();
 }
 
+/* 고충 접수 비밀번호 인증 상태 보존 — renderAdminAll()이 grievance 섹션을
+   재렌더링해도 이미 인증된 catId는 목록을 즉시 복원한다. */
+const grievanceUnlockedMap = {};
+
 function unlockGrievanceInspection(catId) {
   const pw = prompt("🔑 고충 접수내역을 조회하려면 CM 확인 비밀번호를 입력하세요.");
   if(!pw) return;
-  
-  // 고충 접수 조회 비밀번호 skdmlwlq12@@ 로 완벽 교체 완료
+
   if(pw !== "skdmlwlq12@@") {
     alert("❌ 비밀번호가 올바르지 않습니다. CM만 확인 가능합니다.");
     return;
   }
-  
+
+  grievanceUnlockedMap[catId] = true;
+  renderGrievanceList(catId);
+}
+
+function renderGrievanceList(catId) {
   const listWrap = document.getElementById(`grivContentArea_${catId}`);
   if(!listWrap) return;
-  
+
   const itemsData = dynamicDataCache[catId] || {};
   const items = Object.keys(itemsData).map(k => ({id: k, ...itemsData[k]})).sort((a,b) => b.timestamp - a.timestamp);
-  
+
   if(items.length === 0) {
     listWrap.innerHTML = '<li class="empty-msg">접수된 고충 내역이 없습니다.</li>';
     return;
   }
-  
+
   listWrap.innerHTML = items.map(item => {
     if(!item.isAdminRead) {
       dataRef.child(catId).child(item.id).update({ isAdminRead: true });
     }
-    
     return `
       <li class="file-item" style="display:block; background:#fff; text-align:left; border-left: 4px solid #de5246;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px dashed #eef0fa; padding-bottom:6px;">
@@ -86,7 +102,7 @@ function renderAdminAll() {
     section.innerHTML = `
       <div class="category-title-wrap">
         <h3>
-          ${cat.icon} <span>${escapeHtml(cat.name)}</span> ${alertBadgeHtml}
+          ${getCategoryIcon(cat)} <span>${escapeHtml(cat.name)}</span> ${alertBadgeHtml}
           <span class="edit-title-icon" onclick="openEditCategoryModal('${catId}')">✏️</span>
         </h3>
         <div style="display:flex; gap:6px; align-items:center;">
@@ -129,6 +145,8 @@ function renderAdminAll() {
       `;
       section.appendChild(grivBox);
       container.appendChild(section);
+      // 이미 인증된 catId면 renderAdminAll 재호출 후에도 목록 즉시 복원
+      if(grievanceUnlockedMap[catId]) renderGrievanceList(catId);
       return;
     }
 
@@ -253,14 +271,34 @@ function renderUserMenu() {
 
     let unreadCount = 0;
     // 고충접수 회색 가이드 문구 간결화 교체 완료
-    let subDescription = cat.type==='board'?'안내글 및 게시사항 확인':cat.type==='schedule'?'달력식 실시간 개인 근무 확인':'자료실 및 파일 확인';
+    let subDescription = cat.description ||
+      (cat.type==='board' ? '안내글 및 게시사항 확인' :
+       cat.type==='schedule' ? '달력식 실시간 개인 근무 확인' :
+       cat.type==='briefing' ? '브리핑 내용 확인 및 서명' :
+       cat.type==='link' ? '관련 링크 바로가기' :
+       '자료실 및 파일 확인');
     
     if (cat.type === 'schedule') {
       if (myEmpId) unreadCount = parseInt(localStorage.getItem(`unreadcount_${myEmpId}`) || '0', 10);
+    } else if (cat.type === 'briefing') {
+      // 미확인 브리핑 수 = 등록된 브리핑 중 현재 직원이 아직 서명하지 않은 수
+      if (myEmpId) {
+        const myConfirms = briefingConfirmationsCache || {};
+        unreadCount = Object.keys(briefingsCache).filter(function(dateKey) {
+          return !(myConfirms[dateKey] && myConfirms[dateKey][myEmpId]);
+        }).length;
+        console.log('[BRIEFING BADGE]', {
+          registered: Object.keys(briefingsCache).length,
+          myConfirmedCount: Object.keys(briefingsCache).filter(function(dateKey) {
+            return !!(myConfirms[dateKey] && myConfirms[dateKey][myEmpId]);
+          }).length,
+          badgeCount: unreadCount,
+          empId: myEmpId
+        });
+      }
     } else if(cat.type === 'grievance') {
       subDescription = cat.description || "요청 및 고충 접수";
-      const itemsData = dynamicDataCache[catId] || {};
-      unreadCount = Object.keys(itemsData).filter(k => !itemsData[k].isAdminRead).length;
+      unreadCount = 0; // 고충 접수 건수는 직원에게 절대 노출하지 않음 (관리자 전용)
     } else {
       const lastSeen = parseInt(localStorage.getItem(`cat_lastseen_${catId}`) || '0', 10);
       const itemsData = dynamicDataCache[catId] || {};
@@ -276,7 +314,7 @@ function renderUserMenu() {
     }
 
     card.innerHTML = `
-      <div class="icon" style="${catId==='standard'?'background:linear-gradient(135deg,#34c98f,#6de0b8);':''} ${catId==='schedule'?'background:linear-gradient(135deg,#8b6df8,#a78bfa);':''} ${cat.type==='grievance'?'background:linear-gradient(135deg,#ff7675,#de5246);':''}">${cat.icon}${badgeHtml}</div>
+      <div class="icon" style="${catId==='standard'?'background:linear-gradient(135deg,#34c98f,#6de0b8);':''} ${catId==='schedule'?'background:linear-gradient(135deg,#8b6df8,#a78bfa);':''} ${cat.type==='grievance'?'background:linear-gradient(135deg,#ff7675,#de5246);':''}">${getCategoryIcon(cat)}${badgeHtml}</div>
       <div class="text">
         <h4>${escapeHtml(cat.name)}</h4>
         <p>${subDescription}</p>

@@ -271,6 +271,22 @@ function renderUserMenu() {
     
     if (cat.type === 'schedule') {
       if (myEmpId) unreadCount = parseInt(localStorage.getItem(`unreadcount_${myEmpId}`) || '0', 10);
+    } else if (cat.type === 'briefing') {
+      // 미확인 브리핑 수 = 등록된 브리핑 중 현재 직원이 아직 서명하지 않은 수
+      if (myEmpId) {
+        const myConfirms = briefingConfirmationsCache || {};
+        unreadCount = Object.keys(briefingsCache).filter(function(dateKey) {
+          return !(myConfirms[dateKey] && myConfirms[dateKey][myEmpId]);
+        }).length;
+        console.log('[BRIEFING BADGE]', {
+          registered: Object.keys(briefingsCache).length,
+          myConfirmedCount: Object.keys(briefingsCache).filter(function(dateKey) {
+            return !!(myConfirms[dateKey] && myConfirms[dateKey][myEmpId]);
+          }).length,
+          badgeCount: unreadCount,
+          empId: myEmpId
+        });
+      }
     } else if(cat.type === 'grievance') {
       subDescription = cat.description || "요청 및 고충 접수";
       const itemsData = dynamicDataCache[catId] || {};

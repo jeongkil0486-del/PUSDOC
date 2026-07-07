@@ -147,6 +147,7 @@ briefingsRef.on('value', snapshot => {
 briefingConfirmationsRef.on('value', snapshot => {
   briefingConfirmationsCache = snapshot.val() || {};
   renderAdminAll();
+  renderUserMenu(); // 서명 저장 후 직원 홈 배지 즉시 갱신
   if (currentCategory && categoriesCache[currentCategory]?.type === 'briefing') renderUserFiles();
 });
 

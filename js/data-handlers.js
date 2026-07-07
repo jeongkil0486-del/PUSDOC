@@ -55,6 +55,19 @@ function openBoardEditor(catId, itemId = null) {
   activeEditorCatId = catId;
   activeEditorItemId = itemId;
   attachedImageFile = null;
+  const cat = categoriesCache[catId] || {};
+  const dateWrap = document.getElementById('briefingDateWrap');
+  const dateInput = document.getElementById('briefingDateInput');
+  if(dateWrap && dateInput) {
+    if(cat.type === 'briefing') {
+      dateWrap.classList.remove('hidden');
+      const today = new Date();
+      dateInput.value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+    } else {
+      dateWrap.classList.add('hidden');
+      dateInput.value = '';
+    }
+  }
 
   document.getElementById('boardImgFile').value = '';
   document.getElementById('boardImgStatus').textContent = '';
@@ -64,6 +77,7 @@ function openBoardEditor(catId, itemId = null) {
     const item = dynamicDataCache[catId][itemId];
     document.getElementById('noticeTitleInput').value = item.title;
     document.getElementById('noticeContentInput').value = item.content;
+    if(dateInput && item.briefingDateKey) dateInput.value = item.briefingDateKey;
     if(item.imageUrl) {
       const img = document.getElementById('boardImgPrev');
       img.src = item.imageUrl;
@@ -105,15 +119,19 @@ async function saveBoardItem() {
     }
 
     const dateStr = new Date().toLocaleString('ko-KR');
+    const cat = categoriesCache[activeEditorCatId] || {};
+    const briefingDateInput = document.getElementById('briefingDateInput');
+    const briefingDateKey = cat.type === 'briefing' && briefingDateInput ? briefingDateInput.value : '';
+    if(cat.type === 'briefing' && !briefingDateKey) { alert('브리핑 적용 날짜를 선택해 주세요.'); return; }
+    const savePayload = { title, content, date: dateStr, imageUrl };
+    if(cat.type === 'briefing') savePayload.briefingDateKey = briefingDateKey;
 
     if(activeEditorItemId) {
-      await dataRef.child(activeEditorCatId).child(activeEditorItemId).update({
-        title, content, date: dateStr, imageUrl
-      });
+      await dataRef.child(activeEditorCatId).child(activeEditorItemId).update(savePayload);
     } else {
       const newItemId = 'board_' + Date.now();
       await dataRef.child(activeEditorCatId).child(newItemId).set({
-        title, content, date: dateStr, timestamp: Date.now(), imageUrl
+        ...savePayload, timestamp: Date.now()
       });
     }
     closeNoticeEditor();

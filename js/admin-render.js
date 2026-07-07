@@ -92,7 +92,7 @@ function renderAdminAll() {
         <div style="display:flex; gap:6px; align-items:center;">
           <button class="order-btn" onclick="moveCategoryOrder('${catId}',-1)" ${isFirst?'disabled':''}>▲</button>
           <button class="order-btn" onclick="moveCategoryOrder('${catId}',1)"  ${isLast ?'disabled':''}>▼</button>
-          ${(cat.type !== 'schedule' && cat.type !== 'grievance') ? `<button class="toggle-minimize-btn" onclick="toggleMinimizeSection('${catId}')">${isFileListMinimizedMap[catId] ? '📁 목록 펼치기' : '📂 목록 접기'}</button>` : ''}
+          ${(cat.type !== 'schedule' && cat.type !== 'grievance') ? `<button class="toggle-minimize-btn" onclick="toggleMinimizeSection('${catId}')">${isFileListMinimizedMap[catId] ? '▶ 목록 펼치기' : '▼ 목록 접기'}</button>` : ''}
           <button class="delete-category-btn" onclick="deleteCategory('${catId}')">❌ 항목 삭제</button>
         </div>
       </div>
@@ -129,6 +129,29 @@ function renderAdminAll() {
       `;
       section.appendChild(grivBox);
       container.appendChild(section);
+      return;
+    }
+
+    if(cat.type === 'briefing') {
+      container.appendChild(section);
+      if(isFileListMinimizedMap[catId]) {
+        const minimInfo = document.createElement('div');
+        minimInfo.className = 'empty-msg';
+        minimInfo.style.background = '#f1f5f9';
+        minimInfo.style.borderRadius = '8px';
+        minimInfo.textContent = '목록이 최소화 상태입니다. 펼치기 버튼을 누르면 전체 리스트를 조회합니다.';
+        section.appendChild(minimInfo);
+        return;
+      }
+      if(typeof renderAdminBriefingSection === 'function') {
+        try { renderAdminBriefingSection(section, catId); }
+        catch (err) {
+          console.error('Briefing admin render failed:', err);
+          section.insertAdjacentHTML('beforeend', '<div class="empty-msg" style="background:#fff5f5; color:#de5246; text-align:left;">브리핑일지 화면을 불러오는 중 오류가 발생했습니다. 콘솔 오류를 확인해 주세요.</div>');
+        }
+      } else {
+        section.insertAdjacentHTML('beforeend', '<div class="empty-msg" style="background:#f8f9fd; text-align:left;">브리핑일지 UI를 불러오는 중입니다. 잠시 후 자동으로 다시 표시됩니다.</div>');
+      }
       return;
     }
 

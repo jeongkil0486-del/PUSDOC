@@ -16,6 +16,7 @@
 <link class="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22PUS%20DOC%22%2C%22short_name%22%3A%22PUS%20DOC%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23f4f6fb%22%2C%22theme_color%22%3A%22%236d83ff%22%7D">
 <link rel="stylesheet" href="css/style.css">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 </head>
 <body>
 
@@ -125,7 +126,9 @@
 <div id="userScreen" class="hidden">
   <div class="user-header">
     <h2><span id="userTitle">PUS여객</span> <span class="notice-badge hidden" id="noticeBadgeHeader">0</span></h2>
-    <button onclick="logout()">로그아웃</button>
+    <div style="display:flex; gap:6px; align-items:center;">
+      <button onclick="logout()">로그아웃</button>
+    </div>
   </div>
 
   <div class="menu-wrap" id="menuView">
@@ -192,6 +195,7 @@
     <label for="categoryTypeSelect">항목 종류</label>
     <select id="categoryTypeSelect" onchange="handleCategoryTypeSelectChange(this.value)">
       <option value="board">📝 글 작성 게시판 형태 (공지사항 등)</option>
+      <option value="briefing">🛫 브리핑일지 확인/서명 형태</option>
       <option value="file">📁 PDF 파일 업로드 형태 (교육자료 등)</option>
       <option value="schedule">📅 개인 스케줄 달력 연동 형태</option>
       <option value="link">🔗 링크 바로가기 목록 형태</option>
@@ -211,6 +215,11 @@
 <div id="noticeEditorModal" class="modal-overlay hidden">
   <div class="modal-box" style="width:480px; max-width:90vw;">
     <h3 id="noticeEditorTitle">📝 새 글 작성</h3>
+
+    <div id="briefingDateWrap" class="hidden">
+      <label for="briefingDateInput">브리핑 적용 날짜</label>
+      <input type="date" id="briefingDateInput">
+    </div>
     <label for="noticeTitleInput">제목</label>
     <input type="text" id="noticeTitleInput" placeholder="제목을 입력하세요">
     <label for="noticeContentInput">내용</label>
@@ -284,7 +293,7 @@
     <h3 id="linkEditorTitle">🔗 새 링크 추가</h3>
     <label for="linkTitleInput">링크 제목</label>
     <input type="text" id="linkTitleInput" placeholder="예: 회사 홈페이지">
-    <label for="linkUrlInput">リンク URL</label>
+    <label for="linkUrlInput">링크 URL</label>
     <input type="url" id="linkUrlInput" placeholder="https://example.com">
     <div class="modal-actions">
       <button class="modal-cancel" onclick="closeLinkEditor()">취소</button>
@@ -292,6 +301,7 @@
     </div>
   </div>
 </div>
+
 
 <div id="pushModal" class="modal-overlay hidden">
   <div class="modal-box">
@@ -328,5 +338,6 @@
 <script src="js/data-handlers.js"></script>
 
 <script src="js/user-auth.js"></script>
+<script src="js/briefing-signature.js?v=20260706-briefing-ui"></script>
 </body>
 </html>

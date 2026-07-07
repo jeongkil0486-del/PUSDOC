@@ -17,6 +17,10 @@ const dataRef = firebase.database().ref('dynamicData');
 const scheduleMasterRef = firebase.database().ref('scheduleMaster'); 
 const scheduleMetaRef = firebase.database().ref('scheduleMeta');   // ✅ 업로드 이력
 const userAccountsRef = firebase.database().ref('userAccounts'); 
+const briefingsRef = firebase.database().ref('briefings');
+const briefingConfirmationsRef = firebase.database().ref('briefingConfirmations'); 
+const briefingTemplateRef = firebase.database().ref('briefingTemplate'); 
+const briefingTemplateMappingRef = firebase.database().ref('briefingTemplateMapping'); 
 
 const WORKER_URL = 'https://pusdoc.jeongkil0486.workers.dev'; 
 const UPLOAD_SECRET = 'PUSDOC';                                        
@@ -32,6 +36,10 @@ let categoriesCache = {};
 let dynamicDataCache = {};
 let scheduleMasterCache = {};
 let userAccountsCache = {};
+let briefingsCache = {};
+let briefingConfirmationsCache = {};
+let briefingTemplateCache = {};
+let briefingTemplateMappingCache = {};
 let currentCategory = null;
 let isCategoriesLoaded   = false;
 let isDataLoaded         = false;
@@ -43,14 +51,13 @@ let isFileListMinimizedMap = {};
 function initDefaultCategories() {
   categoriesRef.once('value', snapshot => {
     const existing = snapshot.val() || {};
-    if(!existing["schedule"]) {
-      categoriesRef.set({
-        "notice": existing["notice"] || { name: "공지사항", type: "board", icon: "📢", order: 1 },
-        "standard": existing["standard"] || { name: "업무 표준화", type: "board", icon: "📗", order: 2 },
-        "schedule": { name: "근무 스케줄", type: "schedule", icon: "📅", order: 3 },
-        "edu": existing["edu"] || { name: "교육자료", type: "file", icon: "📘", order: 4 }
-      });
-    }
+    const updates = {};
+    if(!existing["notice"]) updates["notice"] = { name: "공지사항", type: "board", icon: "📢", order: 1 };
+    // "업무 표준화"(standard) 자동생성 제거 - 사용자가 직접 만든 항목은 DB에 유지됨
+    if(!existing["schedule"]) updates["schedule"] = { name: "근무 스케줄", type: "schedule", icon: "📅", order: 3 };
+    if(!existing["briefing"]) updates["briefing"] = { name: "브리핑일지", type: "briefing", icon: "🛫", order: 4 };
+    if(!existing["edu"]) updates["edu"] = { name: "교육자료", type: "file", icon: "📘", order: 5 };
+    if(Object.keys(updates).length > 0) categoriesRef.update(updates);
   });
   
   userAccountsRef.child('PUSDOC').once('value', s => {
@@ -130,6 +137,29 @@ userAccountsRef.on('value', snapshot => {
 scheduleMetaRef.on('value', snapshot => {
   renderAdminUploadHistory(snapshot.val() || {});
 });
+
+briefingsRef.on('value', snapshot => {
+  briefingsCache = snapshot.val() || {};
+  renderAdminAll();
+  if (currentCategory && categoriesCache[currentCategory]?.type === 'briefing') renderUserFiles();
+});
+
+briefingConfirmationsRef.on('value', snapshot => {
+  briefingConfirmationsCache = snapshot.val() || {};
+  renderAdminAll();
+  if (currentCategory && categoriesCache[currentCategory]?.type === 'briefing') renderUserFiles();
+});
+
+briefingTemplateRef.on('value', snapshot => {
+  briefingTemplateCache = snapshot.val() || {};
+  renderAdminAll();
+});
+
+briefingTemplateMappingRef.on('value', snapshot => {
+  briefingTemplateMappingCache = snapshot.val() || {};
+  renderAdminAll();
+});
+
 
 function checkInitialSessionRestore() {
   if (sessionRestoreDone) return;

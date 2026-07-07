@@ -424,6 +424,7 @@ function ensureAdminBriefingEditor() {
   modal.innerHTML = `
     <div class="modal-box" style="width:600px; max-width:94vw; max-height:90vh; overflow-y:auto;">
       <h3 id="adminBriefingEditorTitle">브리핑일지 등록</h3>
+      <div id="adminBriefingSignStatus" style="display:none;"></div>
       <div style="font-size:11px; color:#888; margin-bottom:14px; line-height:1.5;">상단 TAS/TW는 양식 상단 텍스트 값입니다. 각 섹션에서 체크를 해제하면 해당 셀의 기존 양식 내용을 지우고 입력값으로 대체합니다.</div>
       <div style="display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; margin-bottom:14px;">
         <div>
@@ -480,6 +481,34 @@ function openAdminBriefingEditor(catId, dateKey) {
   // 등록된 브리핑이 있을 때만 삭제 버튼 노출
   const deleteBtn = document.getElementById('adminBriefingDeleteBtn');
   if (deleteBtn) deleteBtn.style.display = existing ? '' : 'none';
+
+  // 서명 현황 표시 (등록된 브리핑이 있을 때만)
+  const signStatusArea = document.getElementById('adminBriefingSignStatus');
+  if (signStatusArea) {
+    if (existing) {
+      const confirmations = briefingConfirmationsCache[dateKey] || {};
+      const signedIds = new Set(Object.keys(confirmations));
+      // 관리자 계정 제외한 전체 직원 목록
+      const allEmployees = Object.values(userAccountsCache).filter(function(u) {
+        return u.empId && u.empId.toUpperCase() !== ADMIN_ID.toUpperCase();
+      });
+      const signed = allEmployees.filter(function(u) { return signedIds.has(u.empId); });
+      const unsigned = allEmployees.filter(function(u) { return !signedIds.has(u.empId); });
+      const unsignedNames = unsigned.map(function(u) { return escapeHtml(u.empName || u.empId); });
+      signStatusArea.innerHTML = `
+        <div style="background:#f4f6fb; border:1px solid #e0e4f5; border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:13px;">
+          <div style="display:flex; gap:16px; margin-bottom:${unsigned.length ? '10px' : '0'}; flex-wrap:wrap;">
+            <span style="font-weight:700; color:#27ae60;">✅ 서명 완료: <span style="font-size:15px;">${signed.length}명</span></span>
+            <span style="font-weight:700; color:${unsigned.length ? '#e25b5b' : '#aaa'};">⬜ 미서명: <span style="font-size:15px;">${unsigned.length}명</span></span>
+          </div>
+          ${unsigned.length ? `<div style="font-size:12px; color:#e25b5b; font-weight:600; line-height:1.8;">미서명: ${unsignedNames.join(', ')}</div>` : '<div style="font-size:12px; color:#27ae60; font-weight:600;">전원 서명 완료</div>'}
+        </div>`;
+      signStatusArea.style.display = '';
+    } else {
+      signStatusArea.style.display = 'none';
+    }
+  }
+
   modal.classList.remove('hidden');
 }
 

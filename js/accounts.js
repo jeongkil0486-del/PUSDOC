@@ -60,7 +60,7 @@ function renderAdminPopupIdList() {
     const div = document.createElement('div');
     div.className = 'id-item';
     
-    const currentPwStatus = user.pw === "" ? "🔑 미등록 (최초 입력 대기 상태)" : `비밀번호: ${user.pw}`;
+    const currentPwStatus = user.pw === "" ? "🔑 비밀번호 미등록 (최초 입력 대기 상태)" : "🔒 비밀번호 설정됨";
     
     div.innerHTML = `
       <div class="id-item-info">

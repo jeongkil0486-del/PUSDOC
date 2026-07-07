@@ -838,13 +838,21 @@ function updateNoticeBadge() {
   totalUnread += Object.keys(noticesData).filter(k => (noticesData[k].timestamp || 0) > lastSeenNotice).length;
 
   Object.keys(categoriesCache).forEach(catId => {
-    if (catId === 'notice') return; 
+    if (catId === 'notice') return;
     const cat = categoriesCache[catId];
-    if (cat.type === 'grievance') return; 
+    if (cat.type === 'grievance') return; // 고충 접수는 직원 배지 완전 제외
 
     if (cat.type === 'schedule') {
       if (myEmpId) {
         totalUnread += parseInt(localStorage.getItem(`unreadcount_${myEmpId}`) || '0', 10);
+      }
+    } else if (cat.type === 'briefing') {
+      // 브리핑 미확인 수 = 등록된 브리핑 중 현재 직원이 서명하지 않은 건수
+      if (myEmpId) {
+        const myConfirms = briefingConfirmationsCache || {};
+        totalUnread += Object.keys(briefingsCache).filter(function(dateKey) {
+          return !(myConfirms[dateKey] && myConfirms[dateKey][myEmpId]);
+        }).length;
       }
     } else {
       const lastSeen = parseInt(localStorage.getItem(`cat_lastseen_${catId}`) || '0', 10);
@@ -858,8 +866,8 @@ function updateNoticeBadge() {
     if (totalUnread > 0) {
       headerBadge.textContent = totalUnread > 99 ? '99+' : String(totalUnread);
       headerBadge.classList.remove('hidden');
-    } else { 
-      headerBadge.classList.add('hidden'); 
+    } else {
+      headerBadge.classList.add('hidden');
     }
   }
 }

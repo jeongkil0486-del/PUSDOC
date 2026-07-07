@@ -15,32 +15,39 @@ function toggleMinimizeSection(catId) {
   renderAdminAll();
 }
 
+/* 고충 접수 비밀번호 인증 상태 보존 — renderAdminAll()이 grievance 섹션을
+   재렌더링해도 이미 인증된 catId는 목록을 즉시 복원한다. */
+const grievanceUnlockedMap = {};
+
 function unlockGrievanceInspection(catId) {
   const pw = prompt("🔑 고충 접수내역을 조회하려면 CM 확인 비밀번호를 입력하세요.");
   if(!pw) return;
-  
-  // 고충 접수 조회 비밀번호 skdmlwlq12@@ 로 완벽 교체 완료
+
   if(pw !== "skdmlwlq12@@") {
     alert("❌ 비밀번호가 올바르지 않습니다. CM만 확인 가능합니다.");
     return;
   }
-  
+
+  grievanceUnlockedMap[catId] = true;
+  renderGrievanceList(catId);
+}
+
+function renderGrievanceList(catId) {
   const listWrap = document.getElementById(`grivContentArea_${catId}`);
   if(!listWrap) return;
-  
+
   const itemsData = dynamicDataCache[catId] || {};
   const items = Object.keys(itemsData).map(k => ({id: k, ...itemsData[k]})).sort((a,b) => b.timestamp - a.timestamp);
-  
+
   if(items.length === 0) {
     listWrap.innerHTML = '<li class="empty-msg">접수된 고충 내역이 없습니다.</li>';
     return;
   }
-  
+
   listWrap.innerHTML = items.map(item => {
     if(!item.isAdminRead) {
       dataRef.child(catId).child(item.id).update({ isAdminRead: true });
     }
-    
     return `
       <li class="file-item" style="display:block; background:#fff; text-align:left; border-left: 4px solid #de5246;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px dashed #eef0fa; padding-bottom:6px;">
@@ -138,6 +145,8 @@ function renderAdminAll() {
       `;
       section.appendChild(grivBox);
       container.appendChild(section);
+      // 이미 인증된 catId면 renderAdminAll 재호출 후에도 목록 즉시 복원
+      if(grievanceUnlockedMap[catId]) renderGrievanceList(catId);
       return;
     }
 
@@ -289,8 +298,7 @@ function renderUserMenu() {
       }
     } else if(cat.type === 'grievance') {
       subDescription = cat.description || "요청 및 고충 접수";
-      const itemsData = dynamicDataCache[catId] || {};
-      unreadCount = Object.keys(itemsData).filter(k => !itemsData[k].isAdminRead).length;
+      unreadCount = 0; // 고충 접수 건수는 직원에게 절대 노출하지 않음 (관리자 전용)
     } else {
       const lastSeen = parseInt(localStorage.getItem(`cat_lastseen_${catId}`) || '0', 10);
       const itemsData = dynamicDataCache[catId] || {};

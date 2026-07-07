@@ -386,3 +386,18 @@
 .briefing-sheet-table td, .briefing-sheet-table th { border:1px solid #d8dbe8; padding:5px 7px; min-width:42px; vertical-align:middle; word-break:break-word; }
 .briefing-sheet-table tr:first-child td, .briefing-sheet-table th { background:#f1f5ff; font-weight:800; }
 #briefingConfirmBtn:disabled { opacity:0.45; cursor:not-allowed; }
+
+/* ===== 앱 부팅 깜빡임 방지 ===== */
+/* body.app-booting 상태에서는 loginScreen/adminScreen/userScreen을 모두 숨긴다.
+   finishAppBoot()가 호출되면 app-booting 클래스가 제거되고 정상 동작한다. */
+body.app-booting #loginScreen,
+body.app-booting #adminScreen,
+body.app-booting #userScreen { display: none !important; }
+
+#appBootScreen {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #f4f6fb;
+  z-index: 99999;
+}
+/* booting 끝나면 appBootScreen은 JS로 remove()되므로 별도 hide 처리 불필요 */

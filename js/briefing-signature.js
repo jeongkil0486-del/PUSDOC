@@ -593,8 +593,8 @@ function renderBriefingCalendar() {
         let click = '';
         if (registered) {
           badge = confirmed
-            ? `<div class="sch-code" style="background:linear-gradient(135deg,#34c98f,#27ae60);">확인 완료</div>`
-            : `<div class="sch-code off-code">확인 필요</div>`;
+            ? `<div class="sch-code briefing-badge-done">확인</div>`
+            : `<div class="sch-code briefing-badge-todo">미확인</div>`;
           click = `onclick="openBriefingDayPopup('${dateKey}')" style="cursor:pointer;"`;
         }
         html += `<td class="${cls}" ${click}><div class="calendar-day-cell"><div class="day-num">${day}</div>${badge}</div></td>`;

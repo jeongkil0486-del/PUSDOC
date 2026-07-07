@@ -53,7 +53,7 @@ function initDefaultCategories() {
     const existing = snapshot.val() || {};
     const updates = {};
     if(!existing["notice"]) updates["notice"] = { name: "공지사항", type: "board", icon: "📢", order: 1 };
-    if(!existing["standard"]) updates["standard"] = { name: "업무 표준화", type: "board", icon: "📗", order: 2 };
+    // "업무 표준화"(standard) 자동생성 제거 - 사용자가 직접 만든 항목은 DB에 유지됨
     if(!existing["schedule"]) updates["schedule"] = { name: "근무 스케줄", type: "schedule", icon: "📅", order: 3 };
     if(!existing["briefing"]) updates["briefing"] = { name: "브리핑일지", type: "briefing", icon: "🛫", order: 4 };
     if(!existing["edu"]) updates["edu"] = { name: "교육자료", type: "file", icon: "📘", order: 5 };

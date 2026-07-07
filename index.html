@@ -18,7 +18,29 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 </head>
-<body>
+<body class="app-booting">
+
+<!-- 세션 확인 전 로그인 화면 깜빡임 방지: JS가 로드되기 전에 세션 여부를 미리 체크해
+     세션이 있으면 loginScreen을 처음부터 숨겨둔다. Firebase 데이터 로드 완료 후
+     checkInitialSessionRestore()에서 finishAppBoot()를 호출해 booting 클래스를 제거한다. -->
+<script>
+(function() {
+  try {
+    var s = localStorage.getItem('eduSiteSession');
+    if (s === 'admin' || s === 'user') {
+      // 세션 있음 — loginScreen을 DOM에서 처음부터 숨긴 채로 시작
+      document.write('<style>#loginScreen{display:none!important}</style>');
+    }
+  } catch(e) {}
+})();
+</script>
+
+<div id="appBootScreen">
+  <div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
+    <div style="width:44px;height:44px;background:linear-gradient(135deg,#6d83ff,#a78bfa);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:#fff;">P</div>
+    <div style="color:#6d83ff;font-weight:700;font-size:15px;letter-spacing:0.5px;">불러오는 중...</div>
+  </div>
+</div>
 
 <div id="idListPopupWrap" class="id-list-popup hidden">
   <h4>계정 생성 및 명단 <span style="cursor:pointer; color:#aaa;" onclick="toggleIdListPopup()">✕</span></h4>

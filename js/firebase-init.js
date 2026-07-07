@@ -163,6 +163,21 @@ briefingTemplateMappingRef.on('value', snapshot => {
 });
 
 
+/* 앱 부팅 완료 — booting 클래스 제거 + 로딩 화면 삭제
+   세션 있으면 enterAdmin/enterUser가 이미 올바른 화면을 표시한 상태이고,
+   세션 없으면 loginScreen이 정상 노출된다. */
+function finishAppBoot() {
+  document.body.classList.remove('app-booting');
+  const boot = document.getElementById('appBootScreen');
+  if (boot) boot.remove();
+  // 세션이 없을 때 loginScreen이 CSS에 의해 숨겨진 상태라면 다시 표시
+  const session = localStorage.getItem(SESSION_KEY);
+  if (!session || (session !== 'admin' && session !== 'user')) {
+    const ls = document.getElementById('loginScreen');
+    if (ls) ls.style.removeProperty('display');
+  }
+}
+
 function checkInitialSessionRestore() {
   if (sessionRestoreDone) return;
   if (!isCategoriesLoaded || !isDataLoaded || !isAccountsLoaded) return;
@@ -174,6 +189,8 @@ function checkInitialSessionRestore() {
   } else if (session === 'user') {
     enterUser();
   }
+
+  finishAppBoot();
 }
 
 function renderAdminUploadHistory(metaData) {

@@ -1,6 +1,15 @@
 /* =========================================================
    관리자 UI 렌더링 엔진
 ========================================================= */
+
+/* 카테고리 아이콘 반환 - type 기준으로 override
+   briefing 타입은 DB에 저장된 구버전 🛫 아이콘을 무시하고 📋 반환 */
+function getCategoryIcon(cat) {
+  if (!cat) return '📁';
+  if (cat.type === 'briefing') return '📋';
+  return cat.icon || '📁';
+}
+
 function toggleMinimizeSection(catId) {
   isFileListMinimizedMap[catId] = !isFileListMinimizedMap[catId];
   renderAdminAll();
@@ -86,7 +95,7 @@ function renderAdminAll() {
     section.innerHTML = `
       <div class="category-title-wrap">
         <h3>
-          ${cat.icon} <span>${escapeHtml(cat.name)}</span> ${alertBadgeHtml}
+          ${getCategoryIcon(cat)} <span>${escapeHtml(cat.name)}</span> ${alertBadgeHtml}
           <span class="edit-title-icon" onclick="openEditCategoryModal('${catId}')">✏️</span>
         </h3>
         <div style="display:flex; gap:6px; align-items:center;">
@@ -281,7 +290,7 @@ function renderUserMenu() {
     }
 
     card.innerHTML = `
-      <div class="icon" style="${catId==='standard'?'background:linear-gradient(135deg,#34c98f,#6de0b8);':''} ${catId==='schedule'?'background:linear-gradient(135deg,#8b6df8,#a78bfa);':''} ${cat.type==='grievance'?'background:linear-gradient(135deg,#ff7675,#de5246);':''}">${cat.icon}${badgeHtml}</div>
+      <div class="icon" style="${catId==='standard'?'background:linear-gradient(135deg,#34c98f,#6de0b8);':''} ${catId==='schedule'?'background:linear-gradient(135deg,#8b6df8,#a78bfa);':''} ${cat.type==='grievance'?'background:linear-gradient(135deg,#ff7675,#de5246);':''}">${getCategoryIcon(cat)}${badgeHtml}</div>
       <div class="text">
         <h4>${escapeHtml(cat.name)}</h4>
         <p>${subDescription}</p>

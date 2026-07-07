@@ -769,7 +769,7 @@ function onBriefingReadAllToggle() {
   }
 }
 
-async function openBriefingDayPopup(dateKey) {
+function openBriefingDayPopup(dateKey) {
   const item = briefingsCache[dateKey];
   if (!item) { alert('해당 날짜에 등록된 브리핑일지가 없습니다.'); return; }
   const modal = ensureBriefingPopup();
@@ -781,9 +781,20 @@ async function openBriefingDayPopup(dateKey) {
   const readAllCheck = document.getElementById('briefingReadAllCheck');
   const redoBtn = document.getElementById('briefingSignRedoBtn');
   const canvas = document.getElementById('briefingDaySignCanvas');
+  const wrap = document.getElementById('briefingDaySections');
+
   title.textContent = `${dateKey} 브리핑일지`;
-  wrap.innerHTML = '<div style="text-align:center; padding:20px; color:#aaa; font-size:13px;">내용을 불러오는 중...</div>';
-  renderBriefingDaySections(item);
+
+  // 팝업을 먼저 열고 — 내용 로딩 성패와 무관하게 즉시 표시
+  modal.classList.remove('hidden');
+
+  // 내용 영역은 로딩 중 표시 후 비동기로 채움
+  if (wrap) wrap.innerHTML = '<div style="text-align:center; padding:20px; color:#aaa; font-size:13px;">내용을 불러오는 중...</div>';
+  renderBriefingDaySections(item).catch(function(err) {
+    console.error('[renderBriefingDaySections 오류]', err);
+    if (wrap) wrap.innerHTML = '<div style="padding:12px; color:#e25b5b; font-size:13px;">브리핑 내용을 불러오지 못했습니다.</div>';
+  });
+
   const confirmed = isBriefingConfirmed(dateKey);
   if (confirmed) {
     const myId = getCurrentUserId();
@@ -811,7 +822,6 @@ async function openBriefingDayPopup(dateKey) {
     });
     clearSignatureCanvasEl('briefingDaySignCanvas');
   }
-  modal.classList.remove('hidden');
 }
 
 function closeBriefingDayPopup() {

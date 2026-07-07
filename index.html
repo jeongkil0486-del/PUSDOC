@@ -195,7 +195,7 @@
     <label for="categoryTypeSelect">항목 종류</label>
     <select id="categoryTypeSelect" onchange="handleCategoryTypeSelectChange(this.value)">
       <option value="board">📝 글 작성 게시판 형태 (공지사항 등)</option>
-      <option value="briefing">🛫 브리핑일지 확인/서명 형태</option>
+      <option value="briefing">📋 브리핑일지 확인/서명 형태</option>
       <option value="file">📁 PDF 파일 업로드 형태 (교육자료 등)</option>
       <option value="schedule">📅 개인 스케줄 달력 연동 형태</option>
       <option value="link">🔗 링크 바로가기 목록 형태</option>
@@ -203,6 +203,10 @@
     </select>
     <div id="grievanceNoticeArea" style="font-size:11px; color:#e25b5b; font-weight:700; line-height:1.4; padding:8px; background:#fff1f1; border-radius:6px; border:1px solid #ffd3d3; margin-bottom:14px;" class="hidden">
       ※ '고충 접수처' 선택 시 설명은 "요청 및 고충 접수"로 시스템 고정 설정되며, 직원이 비밀리에 글을 투고하는 익명 접수함으로 작동합니다.
+    </div>
+    <div id="categoryDescriptionArea">
+      <label for="categoryDescriptionInput">직원 화면 설명문 <span style="font-size:11px; color:#aaa; font-weight:400;">(선택 — 비워두면 기본 문구 표시)</span></label>
+      <input type="text" id="categoryDescriptionInput" placeholder="예: 매일 브리핑 확인 후 서명해주세요">
     </div>
     <div class="modal-actions">
       <button class="modal-cancel" onclick="closeCategoryModal()">취소</button>

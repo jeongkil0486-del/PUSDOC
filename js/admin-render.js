@@ -12,12 +12,37 @@ function getCategoryIcon(cat) {
 
 function toggleMinimizeSection(catId) {
   isFileListMinimizedMap[catId] = !isFileListMinimizedMap[catId];
+  const cat = categoriesCache[catId] || {};
+  if (isFileListMinimizedMap[catId]) {
+    if (cat.type === 'briefing') {
+      removeFirebaseListener('view:admin:briefings');
+      removeFirebaseListener('view:admin:confirmations');
+      briefingsCache = {};
+      briefingConfirmationsCache = {};
+      briefingTemplateCache = {};
+      briefingTemplateMappingCache = {};
+    } else {
+      unloadAdminCategoryData(catId);
+    }
+  } else if (cat.type === 'briefing') {
+    const now = new Date();
+    const selected = adminBriefingSelectedYM[catId] || { year: now.getFullYear(), month: now.getMonth() + 1 };
+    loadAdminBriefingResources(catId, selected.year, selected.month);
+  } else {
+    loadAdminCategoryData(catId);
+  }
   renderAdminAll();
 }
 
 /* 고충 접수 비밀번호 인증 상태 보존 — renderAdminAll()이 grievance 섹션을
    재렌더링해도 이미 인증된 catId는 목록을 즉시 복원한다. */
 const grievanceUnlockedMap = {};
+
+function resetAdminSensitiveState() {
+  Object.keys(grievanceUnlockedMap).forEach(function(catId) {
+    delete grievanceUnlockedMap[catId];
+  });
+}
 
 function unlockGrievanceInspection(catId) {
   const pw = prompt("🔑 고충 접수내역을 조회하려면 CM 확인 비밀번호를 입력하세요.");
@@ -29,6 +54,7 @@ function unlockGrievanceInspection(catId) {
   }
 
   grievanceUnlockedMap[catId] = true;
+  loadAdminCategoryData(catId);
   renderGrievanceList(catId);
 }
 
@@ -299,6 +325,9 @@ function renderUserMenu() {
     } else if(cat.type === 'grievance') {
       subDescription = cat.description || "요청 및 고충 접수";
       unreadCount = 0; // 고충 접수 건수는 직원에게 절대 노출하지 않음 (관리자 전용)
+    } else if (catId === 'notice' && Object.keys(noticeMetadataCache).length) {
+      const lastSeen = parseInt(localStorage.getItem(`cat_lastseen_${catId}`) || '0', 10);
+      unreadCount = Object.keys(noticeMetadataCache).filter(k => (Number(noticeMetadataCache[k]) || 0) > lastSeen).length;
     } else {
       const lastSeen = parseInt(localStorage.getItem(`cat_lastseen_${catId}`) || '0', 10);
       const itemsData = dynamicDataCache[catId] || {};

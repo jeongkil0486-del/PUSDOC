@@ -103,7 +103,9 @@ function moveCategoryOrder(id, direction) {
 
 function deleteCategory(id) {
   if(!confirm('이 항목을 삭제하시겠습니까? 내부 데이터와 파일정보도 전부 함께 삭제됩니다.')) return;
+  unloadAdminCategoryData(id);
   categoriesRef.child(id).remove();
   dataRef.child(id).remove();
+  if (id === 'notice') noticeMetadataRef.remove();
   if(currentCategory === id) showMenu();
 }

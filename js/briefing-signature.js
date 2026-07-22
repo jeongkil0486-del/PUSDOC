@@ -192,12 +192,15 @@ async function handleBriefingTemplateUpload(event) {
   const reader = new FileReader();
   reader.onload = async e => {
     try {
-      await briefingTemplateRef.set({
+      const payload = {
         fileName: file.name,
         dataUrl: e.target.result,
         updatedAt: new Date().toLocaleString('ko-KR'),
         updatedAtTs: Date.now()
-      });
+      };
+      await briefingTemplateRef.set(payload);
+      briefingTemplateCache = payload;
+      await refreshBriefingTemplateContentIndex();
       alert('✅ 브리핑 양식이 등록되었습니다. 이 양식은 계속 보관되며 필요 시 새 파일로 교체할 수 있습니다.');
     } catch (err) {
       console.error(err);
@@ -294,8 +297,8 @@ function renderAdminBriefingSection(section, catId) {
 
     <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
       <span style="font-size:13px; font-weight:700; color:#6d83ff;">📆 조회 연월</span>
-      <select id="adminBriefYear_${catId}" onchange="renderAdminBriefingCalendar('${catId}')" style="padding:7px 12px; border-radius:8px; border:1px solid #c5caee; font-size:14px; font-weight:600;"></select>
-      <select id="adminBriefMonth_${catId}" onchange="renderAdminBriefingCalendar('${catId}')" style="padding:7px 12px; border-radius:8px; border:1px solid #c5caee; font-size:14px; font-weight:600;"></select>
+      <select id="adminBriefYear_${catId}" onchange="changeAdminBriefingMonth('${catId}')" style="padding:7px 12px; border-radius:8px; border:1px solid #c5caee; font-size:14px; font-weight:600;"></select>
+      <select id="adminBriefMonth_${catId}" onchange="changeAdminBriefingMonth('${catId}')" style="padding:7px 12px; border-radius:8px; border:1px solid #c5caee; font-size:14px; font-weight:600;"></select>
       <button class="upload-btn" id="briefDownloadBtn_${catId}" style="background:linear-gradient(135deg,#27ae60,#1e9653);" onclick="downloadBriefingMonthlyWorkbook('${catId}')">⬇️ 월별 다운로드</button>
     </div>
     <div style="font-size:11px; color:#777; margin-bottom:10px; line-height:1.5;">날짜를 클릭하면 해당 일자의 브리핑일지를 등록하거나 수정할 수 있습니다.</div>
@@ -342,10 +345,13 @@ function saveBriefingTemplateMapping(catId) {
     alert('셀 주소 형식이 올바르지 않습니다. 예: B3 형식으로 모든 항목을 입력해 주세요.');
     return;
   }
-  briefingTemplateMappingRef.set(Object.assign({}, mapping, {
+  const payload = Object.assign({}, mapping, {
     updatedAt: new Date().toLocaleString('ko-KR'),
     updatedAtTs: Date.now()
-  })).then(function() {
+  });
+  briefingTemplateMappingRef.set(payload).then(async function() {
+    briefingTemplateMappingCache = payload;
+    await refreshBriefingTemplateContentIndex();
     const status = document.getElementById(`briefMapStatus_${catId}`);
     if (!status) return;
     status.textContent = '✅ 저장되었습니다.';
@@ -357,6 +363,17 @@ function saveBriefingTemplateMapping(catId) {
     console.error(err);
     alert('매핑 저장 중 오류가 발생했습니다.');
   });
+}
+
+function changeAdminBriefingMonth(catId) {
+  const yearSel = document.getElementById(`adminBriefYear_${catId}`);
+  const monthSel = document.getElementById(`adminBriefMonth_${catId}`);
+  if (!yearSel || !monthSel) return;
+  const year = parseInt(yearSel.value, 10);
+  const month = parseInt(monthSel.value, 10);
+  adminBriefingSelectedYM[catId] = { year, month };
+  loadAdminBriefingMonth(catId, year, month);
+  renderAdminBriefingCalendar(catId);
 }
 
 function renderAdminBriefingCalendar(catId) {
@@ -526,11 +543,16 @@ async function saveAdminBriefing() {
   const tas = document.getElementById('adminBriefingTasInput').value.trim();
   const tw = document.getElementById('adminBriefingTwInput').value.trim();
   const sections = {};
-  BRIEFING_SECTIONS.forEach(function(s) {
+  for (const s of BRIEFING_SECTIONS) {
     const useTemplate = document.getElementById(`adminBriefSection_${s.key}_useTemplate`).checked;
     const content = document.getElementById(`adminBriefSection_${s.key}_content`).value.trim();
-    sections[s.key] = { useTemplate: useTemplate, content: useTemplate ? '' : content };
-  });
+    const templateContent = useTemplate ? await getTemplateSectionText(s.key) : '';
+    sections[s.key] = {
+      useTemplate: useTemplate,
+      content: useTemplate ? '' : content,
+      templateContent: templateContent || ''
+    };
+  }
   const confirmBtn = document.querySelector('#adminBriefingEditorModal .modal-confirm');
   confirmBtn.disabled = true;
   confirmBtn.textContent = '저장 중...';
@@ -571,10 +593,14 @@ async function deleteAdminBriefing() {
   const deleteBtn = document.getElementById('adminBriefingDeleteBtn');
   if (deleteBtn) { deleteBtn.disabled = true; deleteBtn.textContent = '삭제 중...'; }
   try {
-    await Promise.all([
-      briefingsRef.child(dateKey).remove(),
-      briefingConfirmationsRef.child(dateKey).remove()
-    ]);
+    const confirmationSnapshot = await briefingConfirmationsRef.child(dateKey).once('value');
+    const updates = {};
+    updates[`briefings/${dateKey}`] = null;
+    updates[`briefingConfirmations/${dateKey}`] = null;
+    Object.keys(confirmationSnapshot.val() || {}).forEach(function(empId) {
+      updates[`briefingConfirmationIndex/${empId}/${dateKey}`] = null;
+    });
+    await firebase.database().ref().update(updates);
     closeAdminBriefingEditor();
     if (catId) renderAdminBriefingCalendar(catId);
   } catch (err) {
@@ -644,6 +670,11 @@ function renderBriefingCalendar() {
    - 양식 미등록·셀 주소 미설정·값 없음이면 null 반환 */
 async function getTemplateSectionText(sectionKey) {
   try {
+    if (localStorage.getItem(SESSION_KEY) === 'user') {
+      await loadUserBriefingTemplateContentOnce();
+      const lightweightSections = briefingTemplateContentCache.sections || briefingTemplateContentCache;
+      return lightweightSections[sectionKey] || null;
+    }
     if (typeof ExcelJS === 'undefined') return null;
     if (!briefingTemplateCache || !briefingTemplateCache.dataUrl) return null;
     const mapping = getBriefingTemplateMappingNormalized();
@@ -673,6 +704,19 @@ async function getTemplateSectionText(sectionKey) {
   }
 }
 
+/* Explicit template or mapping saves refresh a small text-only copy. Employees
+   never read the workbook dataUrl or its cell mapping. */
+async function refreshBriefingTemplateContentIndex() {
+  if (localStorage.getItem(SESSION_KEY) !== 'admin') return;
+  const sections = {};
+  for (const section of BRIEFING_SECTIONS) {
+    sections[section.key] = await getTemplateSectionText(section.key) || '';
+  }
+  const payload = { sections, updatedAtTs: Date.now() };
+  await briefingTemplateContentRef.set(payload);
+  briefingTemplateContentCache = payload;
+}
+
 async function renderBriefingDaySections(item) {
   const wrap = document.getElementById('briefingDaySections');
   if (!wrap) return;
@@ -698,7 +742,7 @@ async function renderBriefingDaySections(item) {
     const sec = sections[s.key] || { useTemplate: true, content: '' };
     let body;
     if (sec.useTemplate) {
-      const tmplText = templateTexts[s.key];
+      const tmplText = sec.templateContent || templateTexts[s.key];
       body = tmplText != null && tmplText.trim() !== ''
         ? `<div style="font-size:13px; color:#333; line-height:1.6; white-space:pre-wrap;">${escapeHtml(tmplText)}</div>`
         : `<div style="font-size:12px; color:#bbb; font-style:italic;">(양식에 등록된 내용 없음)</div>`;
@@ -846,13 +890,20 @@ async function confirmBriefing(dateKey) {
   btn.textContent = '저장 중...';
 
   try {
-    await briefingConfirmationsRef.child(dateKey).child(id).set({
+    const signedAt = new Date().toLocaleString('ko-KR');
+    const signedAtTs = Date.now();
+    const confirmation = {
       empId: id,
       empName: name,
       signature,
-      signedAt: new Date().toLocaleString('ko-KR'),
-      signedAtTs: Date.now()
-    });
+      signedAt,
+      signedAtTs
+    };
+    const updates = {};
+    updates[`briefingConfirmations/${dateKey}/${id}`] = confirmation;
+    updates[`briefingConfirmationIndex/${id}/${dateKey}`] = { confirmed: true, signedAt, signedAtTs };
+    await firebase.database().ref().update(updates);
+    briefingConfirmationsCache[dateKey] = { [id]: confirmation };
     alert('✅ 확인 및 서명이 저장되었습니다.');
     closeBriefingDayPopup();
     renderBriefingCalendar();
@@ -1238,6 +1289,15 @@ function findEmployeeSignaturePlacement(worksheet, mappingBlocks, targetName) {
 
 async function downloadBriefingMonthlyWorkbook(catId) {
   if (typeof ExcelJS === 'undefined') { alert('ExcelJS 라이브러리가 로드되지 않았습니다. 인터넷 연결을 확인해 주세요.'); return; }
+  const preloadNow = new Date();
+  const preloadYm = adminBriefingSelectedYM[catId] || { year: preloadNow.getFullYear(), month: preloadNow.getMonth() + 1 };
+  try {
+    await ensureAdminBriefingDownloadData(preloadYm.year, preloadYm.month);
+  } catch (err) {
+    console.error(err);
+    alert('브리핑 다운로드 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    return;
+  }
   if (!briefingTemplateCache || !briefingTemplateCache.dataUrl) { alert('먼저 "브리핑 양식 등록"에서 양식 파일을 등록해 주세요.'); return; }
   const mapping = getBriefingTemplateMappingNormalized();
   const mappingComplete = mapping && mapping.dateCell && mapping.tasCell && mapping.twCell
@@ -1268,8 +1328,7 @@ async function downloadBriefingMonthlyWorkbook(catId) {
     alert('매핑된 셀 주소 형식이 올바르지 않습니다. "양식 셀 매핑"을 다시 확인해 주세요.');
     return;
   }
-  const now = new Date();
-  const ym = adminBriefingSelectedYM[catId] || { year: now.getFullYear(), month: now.getMonth() + 1 };
+  const ym = preloadYm;
   const year = ym.year;
   const month = ym.month;
   const lastDate = new Date(year, month, 0).getDate();

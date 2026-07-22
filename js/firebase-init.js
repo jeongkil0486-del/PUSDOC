@@ -14,13 +14,16 @@ firebase.initializeApp(firebaseConfig);
 
 const categoriesRef = firebase.database().ref('categories');
 const dataRef = firebase.database().ref('dynamicData');
+const noticeMetadataRef = firebase.database().ref('noticeMetadata');
 const scheduleMasterRef = firebase.database().ref('scheduleMaster'); 
 const scheduleMetaRef = firebase.database().ref('scheduleMeta');   // ✅ 업로드 이력
 const userAccountsRef = firebase.database().ref('userAccounts'); 
 const briefingsRef = firebase.database().ref('briefings');
 const briefingConfirmationsRef = firebase.database().ref('briefingConfirmations'); 
+const briefingConfirmationIndexRef = firebase.database().ref('briefingConfirmationIndex');
 const briefingTemplateRef = firebase.database().ref('briefingTemplate'); 
 const briefingTemplateMappingRef = firebase.database().ref('briefingTemplateMapping'); 
+const briefingTemplateContentRef = firebase.database().ref('briefingTemplateContent');
 
 const WORKER_URL = 'https://pusdoc.jeongkil0486.workers.dev'; 
 const UPLOAD_SECRET = 'PUSDOC';                                        
@@ -34,12 +37,14 @@ const USER_ID  = 'PUSDOC';
 
 let categoriesCache = {};
 let dynamicDataCache = {};
+let noticeMetadataCache = {};
 let scheduleMasterCache = {};
 let userAccountsCache = {};
 let briefingsCache = {};
 let briefingConfirmationsCache = {};
 let briefingTemplateCache = {};
 let briefingTemplateMappingCache = {};
+let briefingTemplateContentCache = {};
 let currentCategory = null;
 let isCategoriesLoaded   = false;
 let isDataLoaded         = false;
@@ -47,6 +52,256 @@ let isAccountsLoaded     = false;
 let sessionRestoreDone   = false;  // 세션 복원 중복 방지
 
 let isFileListMinimizedMap = {};
+
+/* Firebase compat listener registry. Every live query is registered under a
+   stable key so repeated session/menu entry replaces, rather than duplicates,
+   the previous listener. */
+const activeFirebaseListeners = new Map();
+const FIREBASE_READ_DEBUG = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+
+function subscribeFirebase(key, query, eventType, callback) {
+  removeFirebaseListener(key);
+  query.on(eventType, callback);
+  activeFirebaseListeners.set(key, { query, eventType, callback });
+  if (FIREBASE_READ_DEBUG) console.debug('[RTDB subscribe]', key, query.toString());
+}
+
+function removeFirebaseListener(key) {
+  const active = activeFirebaseListeners.get(key);
+  if (!active) return;
+  active.query.off(active.eventType, active.callback);
+  activeFirebaseListeners.delete(key);
+  if (FIREBASE_READ_DEBUG) console.debug('[RTDB unsubscribe]', key);
+}
+
+function removeFirebaseListenersByPrefix(prefix) {
+  Array.from(activeFirebaseListeners.keys()).forEach(function(key) {
+    if (key.indexOf(prefix) === 0) removeFirebaseListener(key);
+  });
+}
+
+function resetRoleCaches() {
+  dynamicDataCache = {};
+  noticeMetadataCache = {};
+  scheduleMasterCache = {};
+  userAccountsCache = {};
+  briefingsCache = {};
+  briefingConfirmationsCache = {};
+  briefingTemplateCache = {};
+  briefingTemplateMappingCache = {};
+  briefingTemplateContentCache = {};
+  activeUserCategoryId = null;
+  isFileListMinimizedMap = {};
+  if (typeof resetAdminSensitiveState === 'function') resetAdminSensitiveState();
+}
+
+function stopSessionFirebaseListeners() {
+  userBriefingLoadGeneration++;
+  adminBriefingLoadGeneration++;
+  removeFirebaseListenersByPrefix('session:');
+  removeFirebaseListenersByPrefix('view:');
+  resetRoleCaches();
+}
+
+function monthKeyRange(year, month) {
+  const prefix = `${year}-${String(month).padStart(2, '0')}`;
+  return { prefix, start: `${prefix}-01`, end: `${prefix}-31` };
+}
+
+function makeMonthQuery(ref, year, month) {
+  const range = monthKeyRange(year, month);
+  return ref.orderByKey().startAt(range.start).endAt(range.end);
+}
+
+let activeUserCategoryId = null;
+function unloadUserCategoryData() {
+  removeFirebaseListener('view:user:category');
+  if (activeUserCategoryId) delete dynamicDataCache[activeUserCategoryId];
+  activeUserCategoryId = null;
+}
+
+function loadUserCategoryData(catId) {
+  unloadUserCategoryData();
+  activeUserCategoryId = catId;
+  const cat = categoriesCache[catId] || {};
+  const empId = (localStorage.getItem(LOGGED_IN_ID_KEY) || '').trim();
+  let query = dataRef.child(catId);
+  if (cat.type === 'grievance' && empId) {
+    query = query.orderByChild('writerId').equalTo(empId);
+  }
+  subscribeFirebase('view:user:category', query, 'value', function(snapshot) {
+    dynamicDataCache[catId] = snapshot.val() || {};
+    if (currentCategory !== catId) return;
+    if (cat.type === 'grievance') renderUserGrievance();
+    else renderUserFiles();
+  });
+}
+
+async function loadLegacyUserConfirmations(empId, dateKeys, generation) {
+  const missing = dateKeys.filter(function(dateKey) {
+    return !(briefingConfirmationsCache[dateKey] && briefingConfirmationsCache[dateKey][empId]);
+  });
+  await Promise.all(missing.map(async function(dateKey) {
+    const snapshot = await briefingConfirmationsRef.child(dateKey).child(empId).once('value');
+    if (generation !== userBriefingLoadGeneration || !snapshot.exists()) return;
+    briefingConfirmationsCache[dateKey] = { [empId]: snapshot.val() };
+  }));
+}
+
+let briefingTemplateContentPromise = null;
+async function loadUserBriefingTemplateContentOnce() {
+  if (Object.keys(briefingTemplateContentCache).length) return briefingTemplateContentCache;
+  if (!briefingTemplateContentPromise) {
+    briefingTemplateContentPromise = briefingTemplateContentRef.once('value').then(function(snapshot) {
+      if (localStorage.getItem(SESSION_KEY) !== 'user') return {};
+      briefingTemplateContentCache = snapshot.val() || {};
+      return briefingTemplateContentCache;
+    }).finally(function() {
+      briefingTemplateContentPromise = null;
+    });
+  }
+  return briefingTemplateContentPromise;
+}
+
+let userBriefingLoadGeneration = 0;
+function loadUserBriefingMonth(year, month) {
+  const empId = (localStorage.getItem(LOGGED_IN_ID_KEY) || '').trim();
+  if (!empId) return;
+  const generation = ++userBriefingLoadGeneration;
+  briefingsCache = {};
+  briefingConfirmationsCache = {};
+  removeFirebaseListener('session:user:briefings');
+  removeFirebaseListener('session:user:confirmation-index');
+
+  subscribeFirebase('session:user:confirmation-index', makeMonthQuery(briefingConfirmationIndexRef.child(empId), year, month), 'value', async function(snapshot) {
+    if (generation !== userBriefingLoadGeneration) return;
+    const index = snapshot.val() || {};
+    briefingConfirmationsCache = {};
+    Object.keys(index).forEach(function(dateKey) {
+      briefingConfirmationsCache[dateKey] = { [empId]: index[dateKey] };
+    });
+    await loadLegacyUserConfirmations(empId, Object.keys(briefingsCache), generation);
+    if (generation !== userBriefingLoadGeneration) return;
+    renderUserMenu();
+    updateNoticeBadge();
+    if (currentCategory && categoriesCache[currentCategory]?.type === 'briefing') renderBriefingCalendar();
+  });
+
+  subscribeFirebase('session:user:briefings', makeMonthQuery(briefingsRef, year, month), 'value', async function(snapshot) {
+    if (generation !== userBriefingLoadGeneration) return;
+    briefingsCache = snapshot.val() || {};
+    await loadLegacyUserConfirmations(empId, Object.keys(briefingsCache), generation);
+    if (generation !== userBriefingLoadGeneration) return;
+    renderUserMenu();
+    updateNoticeBadge();
+    if (currentCategory && categoriesCache[currentCategory]?.type === 'briefing') renderBriefingCalendar();
+  });
+}
+
+function startUserFirebaseListeners() {
+  stopSessionFirebaseListeners();
+  const empId = (localStorage.getItem(LOGGED_IN_ID_KEY) || '').trim();
+  if (!empId) return;
+  userAccountsCache = { [empId]: { empId, empName: localStorage.getItem('loggedInUserName') || '' } };
+
+  subscribeFirebase('session:user:account', userAccountsRef.child(empId), 'value', function(snapshot) {
+    if (snapshot.exists()) userAccountsCache = { [empId]: snapshot.val() };
+  });
+  subscribeFirebase('session:user:schedule', scheduleMasterRef.child(empId), 'value', function(snapshot) {
+    scheduleMasterCache = { [empId]: snapshot.val() || {} };
+    checkScheduleChangesBackground();
+    if (currentCategory && categoriesCache[currentCategory]?.type === 'schedule') renderScheduleCalendar();
+    else renderUserMenu();
+  });
+  subscribeFirebase('session:user:notice-metadata', noticeMetadataRef, 'value', function(snapshot) {
+    noticeMetadataCache = snapshot.val() || {};
+    updateNoticeBadge();
+    renderUserMenu();
+  });
+  const now = new Date();
+  loadUserBriefingMonth(now.getFullYear(), now.getMonth() + 1);
+}
+
+function updateAdminScheduleInfo() {
+  const infoPanel = document.getElementById('adminScheduleInfoPanel');
+  if (!infoPanel) return;
+  const count = Object.keys(scheduleMasterCache).length;
+  infoPanel.textContent = count > 0
+    ? `📊 현재 서버에 ${count}명의 엑셀 스케줄 데이터가 실시간 유지 중입니다.`
+    : '❌ 등록된 스케줄이 없습니다. XLSX 파일을 업로드해 주세요.';
+}
+
+function startAdminFirebaseListeners() {
+  stopSessionFirebaseListeners();
+  subscribeFirebase('session:admin:accounts', userAccountsRef, 'value', function(snapshot) {
+    userAccountsCache = snapshot.val() || {};
+    renderAdminPopupIdList();
+  });
+  subscribeFirebase('session:admin:schedule', scheduleMasterRef, 'value', function(snapshot) {
+    scheduleMasterCache = snapshot.val() || {};
+    updateAdminScheduleInfo();
+  });
+  subscribeFirebase('session:admin:schedule-meta', scheduleMetaRef, 'value', function(snapshot) {
+    renderAdminUploadHistory(snapshot.val() || {});
+  });
+}
+
+function loadAdminCategoryData(catId) {
+  const key = `view:admin:category:${catId}`;
+  subscribeFirebase(key, dataRef.child(catId), 'value', function(snapshot) {
+    dynamicDataCache[catId] = snapshot.val() || {};
+    renderAdminAll();
+  });
+}
+
+function unloadAdminCategoryData(catId) {
+  removeFirebaseListener(`view:admin:category:${catId}`);
+  delete dynamicDataCache[catId];
+}
+
+let adminBriefingLoadGeneration = 0;
+function loadAdminBriefingMonth(catId, year, month) {
+  const generation = ++adminBriefingLoadGeneration;
+  briefingsCache = {};
+  briefingConfirmationsCache = {};
+  removeFirebaseListener('view:admin:briefings');
+  removeFirebaseListener('view:admin:confirmations');
+  subscribeFirebase('view:admin:briefings', makeMonthQuery(briefingsRef, year, month), 'value', function(snapshot) {
+    if (generation !== adminBriefingLoadGeneration) return;
+    briefingsCache = snapshot.val() || {};
+    renderAdminAll();
+  });
+  subscribeFirebase('view:admin:confirmations', makeMonthQuery(briefingConfirmationsRef, year, month), 'value', function(snapshot) {
+    if (generation !== adminBriefingLoadGeneration) return;
+    briefingConfirmationsCache = snapshot.val() || {};
+  });
+}
+
+async function loadAdminBriefingResources(catId, year, month) {
+  loadAdminBriefingMonth(catId, year, month);
+  const generation = adminBriefingLoadGeneration;
+  const results = await Promise.all([
+    briefingTemplateRef.once('value'),
+    briefingTemplateMappingRef.once('value')
+  ]);
+  if (generation !== adminBriefingLoadGeneration || localStorage.getItem(SESSION_KEY) !== 'admin' || isFileListMinimizedMap[catId]) return;
+  briefingTemplateCache = results[0].val() || {};
+  briefingTemplateMappingCache = results[1].val() || {};
+  renderAdminAll();
+}
+
+async function ensureAdminBriefingDownloadData(year, month) {
+  const results = await Promise.all([
+    makeMonthQuery(briefingsRef, year, month).once('value'),
+    makeMonthQuery(briefingConfirmationsRef, year, month).once('value'),
+    briefingTemplateRef.once('value'),
+    briefingTemplateMappingRef.once('value')
+  ]);
+  briefingsCache = results[0].val() || {};
+  briefingConfirmationsCache = results[1].val() || {};
+  briefingTemplateCache = results[2].val() || {};
+  briefingTemplateMappingCache = results[3].val() || {};
+}
 
 function initDefaultCategories() {
   categoriesRef.once('value', snapshot => {
@@ -66,100 +321,12 @@ function initDefaultCategories() {
 }
 initDefaultCategories();
 
-categoriesRef.on('value', snapshot => {
+subscribeFirebase('boot:categories', categoriesRef, 'value', snapshot => {
   categoriesCache = snapshot.val() || {};
   isCategoriesLoaded = true;
   renderAdminAll();
   renderUserMenu();
   checkInitialSessionRestore();
-});
-
-dataRef.on('value', snapshot => {
-  dynamicDataCache = snapshot.val() || {};
-  isDataLoaded = true;
-  renderAdminAll();
-  if (currentCategory && categoriesCache[currentCategory]?.type !== 'schedule') {
-    if (categoriesCache[currentCategory]?.type === 'grievance') renderUserGrievance();
-    else renderUserFiles();
-  }
-  updateNoticeBadge(); // 내부에서 통합 상단 알림 처리
-  checkInitialSessionRestore();
-});
-
-scheduleMasterRef.on('value', snapshot => {
-  scheduleMasterCache = snapshot.val() || {};
-  const infoPanel = document.getElementById('adminScheduleInfoPanel');
-  if(infoPanel) {
-    const totalEmployees = Object.keys(scheduleMasterCache).length;
-    infoPanel.textContent = totalEmployees > 0 ? `📊 현재 서버에 ${totalEmployees}명의 엑셀 스케줄 데이터가 실시간 유지 중입니다.` : '❌ 등록된 스케줄이 없습니다. XLSX 파일을 업로드해 주세요.';
-  }
-  // ✅ 스케줄 데이터가 로드되면 달력의 년/월을 데이터 기준으로 자동 보정
-  if(Object.keys(scheduleMasterCache).length > 0) {
-    try {
-      const firstKey = Object.keys(scheduleMasterCache)[0];
-      const firstDates = Object.keys(scheduleMasterCache[firstKey] || {});
-      if(firstDates.length > 0) {
-        const sample = firstDates[0]; // "YYYY-MM-DD"
-        const parts = sample.split('-');
-        if(parts.length === 3) {
-          const dataYear  = parseInt(parts[0], 10);
-          const dataMonth = parseInt(parts[1], 10);
-          const yearSel  = document.getElementById('calendarYearSelect');
-          const monthSel = document.getElementById('calendarMonthSelect');
-          if(yearSel && monthSel && yearSel.options.length > 0) {
-            // 해당 년도 옵션이 있으면 선택
-            const yOpt = Array.from(yearSel.options).find(o => parseInt(o.value,10) === dataYear);
-            if(yOpt) yearSel.value = dataYear;
-            if(monthSel.options.length >= dataMonth) monthSel.value = dataMonth;
-          }
-        }
-      }
-    } catch(e) { /* 자동 보정 실패 시 무시 */ }
-  }
-
-  // 📌 데이터 로드 시 사용자가 메뉴 진입을 안 해도 배경에서 실시간 스케줄 변경 이력을 선제 계산합니다.
-  checkScheduleChangesBackground();
-
-  if (currentCategory && categoriesCache[currentCategory]?.type === 'schedule') {
-    renderScheduleCalendar();
-  } else {
-    renderUserMenu();
-  }
-});
-
-userAccountsRef.on('value', snapshot => {
-  userAccountsCache = snapshot.val() || {};
-  isAccountsLoaded = true;
-  renderAdminPopupIdList();
-  checkInitialSessionRestore();
-});
-
-scheduleMetaRef.on('value', snapshot => {
-  renderAdminUploadHistory(snapshot.val() || {});
-});
-
-briefingsRef.on('value', snapshot => {
-  briefingsCache = snapshot.val() || {};
-  renderAdminAll();
-  if (currentCategory && categoriesCache[currentCategory]?.type === 'briefing') renderUserFiles();
-});
-
-briefingConfirmationsRef.on('value', snapshot => {
-  briefingConfirmationsCache = snapshot.val() || {};
-  renderAdminAll();
-  renderUserMenu(); // 서명 저장 후 직원 홈 배지 즉시 갱신
-  updateNoticeBadge(); // 상단 헤더 배지도 즉시 갱신
-  if (currentCategory && categoriesCache[currentCategory]?.type === 'briefing') renderUserFiles();
-});
-
-briefingTemplateRef.on('value', snapshot => {
-  briefingTemplateCache = snapshot.val() || {};
-  renderAdminAll();
-});
-
-briefingTemplateMappingRef.on('value', snapshot => {
-  briefingTemplateMappingCache = snapshot.val() || {};
-  renderAdminAll();
 });
 
 
@@ -185,7 +352,7 @@ function finishAppBoot() {
 
 function checkInitialSessionRestore() {
   if (sessionRestoreDone) return;
-  if (!isCategoriesLoaded || !isDataLoaded || !isAccountsLoaded) return;
+  if (!isCategoriesLoaded) return;
   sessionRestoreDone = true;
 
   const session = localStorage.getItem(SESSION_KEY);

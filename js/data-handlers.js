@@ -110,11 +110,9 @@ async function saveBoardItem() {
     }
 
     if(attachedImageFile) {
-      imageUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = e => resolve(e.target.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(attachedImageFile);
+      const imageStatus = document.getElementById('boardImgStatus');
+      imageUrl = await uploadToR2(attachedImageFile, 'board_images', function(pct) {
+        if (imageStatus) imageStatus.textContent = `업로드 중... ${pct}%`;
       });
     }
 
@@ -127,12 +125,28 @@ async function saveBoardItem() {
     if(cat.type === 'briefing') savePayload.briefingDateKey = briefingDateKey;
 
     if(activeEditorItemId) {
-      await dataRef.child(activeEditorCatId).child(activeEditorItemId).update(savePayload);
+      if (activeEditorCatId === 'notice') {
+        const existingItem = dynamicDataCache[activeEditorCatId][activeEditorItemId] || {};
+        const timestamp = existingItem.timestamp || Date.now();
+        const updates = {};
+        updates[`dynamicData/${activeEditorCatId}/${activeEditorItemId}`] = { ...existingItem, ...savePayload, timestamp };
+        updates[`noticeMetadata/${activeEditorItemId}`] = timestamp;
+        await firebase.database().ref().update(updates);
+      } else {
+        await dataRef.child(activeEditorCatId).child(activeEditorItemId).update(savePayload);
+      }
     } else {
       const newItemId = 'board_' + Date.now();
-      await dataRef.child(activeEditorCatId).child(newItemId).set({
-        ...savePayload, timestamp: Date.now()
-      });
+      const timestamp = Date.now();
+      const item = { ...savePayload, timestamp };
+      if (activeEditorCatId === 'notice') {
+        const updates = {};
+        updates[`dynamicData/${activeEditorCatId}/${newItemId}`] = item;
+        updates[`noticeMetadata/${newItemId}`] = timestamp;
+        await firebase.database().ref().update(updates);
+      } else {
+        await dataRef.child(activeEditorCatId).child(newItemId).set(item);
+      }
     }
     closeNoticeEditor();
   } catch(e) {
@@ -145,7 +159,14 @@ async function saveBoardItem() {
 
 async function deleteDataItem(catId, itemId) {
   if(!confirm('이 항목을 정말 삭제하시겠습니까?')) return;
-  await dataRef.child(catId).child(itemId).remove();
+  if (catId === 'notice') {
+    const updates = {};
+    updates[`dynamicData/${catId}/${itemId}`] = null;
+    updates[`noticeMetadata/${itemId}`] = null;
+    await firebase.database().ref().update(updates);
+  } else {
+    await dataRef.child(catId).child(itemId).remove();
+  }
 }
 
 let activeLinkEditorCatId = null;

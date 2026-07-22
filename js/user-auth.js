@@ -37,13 +37,6 @@ async function doLogin() {
     let accountKey = id;
 
     if (!account) {
-      const allSnap = await userAccountsRef.once('value');
-      const all = allSnap.val() || {};
-      const foundKey = Object.keys(all).find(k => all[k].empName && all[k].empName.trim() === id);
-      if (foundKey) { account = all[foundKey]; accountKey = foundKey; }
-    }
-
-    if (!account) {
       err.textContent = '존재하지 않는 사번이거나 계정이 없습니다.';
       return;
     }
@@ -78,13 +71,17 @@ async function doLogin() {
 }
 
 function enterAdmin() {
+  startAdminFirebaseListeners();
   document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('userScreen').classList.add('hidden');
   document.getElementById('adminScreen').classList.remove('hidden');
   renderAdminAll();
 }
 
 function enterUser() {
+  startUserFirebaseListeners();
   document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('adminScreen').classList.add('hidden');
   document.getElementById('userScreen').classList.remove('hidden');
   
   checkScheduleChangesBackground();
@@ -94,6 +91,7 @@ function enterUser() {
 }
 
 function logout() {
+  stopSessionFirebaseListeners();
   localStorage.removeItem(SESSION_KEY);
   localStorage.removeItem(LOGGED_IN_ID_KEY);
   localStorage.removeItem('loggedInUserName');
@@ -125,6 +123,7 @@ function logout() {
 }
 
 function showMenu() {
+  unloadUserCategoryData();
   document.getElementById('menuView').classList.remove('hidden');
   document.getElementById('browseView').classList.add('hidden');
   document.getElementById('userTitle').textContent = 'PUS여객';
@@ -157,6 +156,7 @@ function initCalendarSelectors() {
 }
 
 function openCategory(category) {
+  unloadUserCategoryData();
   currentCategory = category;
   document.getElementById('menuView').classList.add('hidden');
   document.getElementById('browseView').classList.remove('hidden');
@@ -195,14 +195,20 @@ function openCategory(category) {
     initCalendarSelectors();
     const ySel = document.getElementById('calendarYearSelect');
     const mSel = document.getElementById('calendarMonthSelect');
-    if(ySel) ySel.onchange = renderBriefingCalendar;
-    if(mSel) mSel.onchange = renderBriefingCalendar;
+    const changeBriefingMonth = function() {
+      loadUserBriefingMonth(parseInt(ySel.value, 10), parseInt(mSel.value, 10));
+      renderBriefingCalendar();
+    };
+    if(ySel) ySel.onchange = changeBriefingMonth;
+    if(mSel) mSel.onchange = changeBriefingMonth;
+    loadUserBriefingMonth(parseInt(ySel.value, 10), parseInt(mSel.value, 10));
     renderBriefingCalendar();
   } else if(catInfo && catInfo.type === 'grievance') {
     document.getElementById('userSearchBoxWrap').classList.add('hidden');
     document.getElementById('userFileList').classList.add('hidden');
     document.getElementById('userCalendarWrap').classList.add('hidden');
     document.getElementById('userGrievanceWrap').classList.remove('hidden');
+    loadUserCategoryData(category);
     renderUserGrievance();
   } else {
     document.getElementById('userSearchBoxWrap').classList.remove('hidden');
@@ -212,6 +218,7 @@ function openCategory(category) {
     document.getElementById('searchInput').value = '';
     
     localStorage.setItem(`cat_lastseen_${category}`, String(Date.now()));
+    loadUserCategoryData(category);
     renderUserFiles();
   }
 
@@ -839,7 +846,9 @@ function getNoticeLastSeenTs() { return parseInt(localStorage.getItem(NOTICE_LAS
 
 function markNoticesRead() {
   const noticesData = dynamicDataCache['notice'] || {};
-  const maxTs = Object.keys(noticesData).reduce((m, k) => Math.max(m, noticesData[k].timestamp || 0), 0);
+  const maxLoadedTs = Object.keys(noticesData).reduce((m, k) => Math.max(m, noticesData[k].timestamp || 0), 0);
+  const maxMetaTs = Object.keys(noticeMetadataCache).reduce((m, k) => Math.max(m, Number(noticeMetadataCache[k]) || 0), 0);
+  const maxTs = Math.max(maxLoadedTs, maxMetaTs);
   localStorage.setItem(NOTICE_LAST_SEEN_KEY, String(Math.max(maxTs, Date.now())));
   updateNoticeBadge();
 }
@@ -850,7 +859,13 @@ function updateNoticeBadge() {
 
   const lastSeenNotice = getNoticeLastSeenTs();
   const noticesData = dynamicDataCache['notice'] || {};
-  totalUnread += Object.keys(noticesData).filter(k => (noticesData[k].timestamp || 0) > lastSeenNotice).length;
+  const noticeTimestamps = Object.keys(noticeMetadataCache).length
+    ? noticeMetadataCache
+    : Object.keys(noticesData).reduce(function(result, key) {
+        result[key] = noticesData[key].timestamp || 0;
+        return result;
+      }, {});
+  totalUnread += Object.keys(noticeTimestamps).filter(k => (Number(noticeTimestamps[k]) || 0) > lastSeenNotice).length;
 
   Object.keys(categoriesCache).forEach(catId => {
     if (catId === 'notice') return;
